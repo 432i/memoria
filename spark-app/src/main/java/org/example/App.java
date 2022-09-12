@@ -1,20 +1,18 @@
 package org.example;
 
-import org.apache.spark.api.java.function.ForeachFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.functions;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
 import java.util.concurrent.TimeoutException;
+
 
 
 public class App 
 {
     public static void main( String[] args ) throws TimeoutException, StreamingQueryException {
         System.out.println( "conecting to kafka from spark..." );
-
         SparkSession spark = SparkSession
                 .builder()
                 .appName("KafkaConsumer")
