@@ -15,16 +15,17 @@ public class App
         System.out.println( "conecting to kafka from spark..." );
         SparkSession spark = SparkSession
                 .builder()
-                .appName("KafkaConsumer")
+                .appName("App")
                 .master("local")
                 .getOrCreate();
 
         Dataset<Row> ds = spark
                 .readStream()
                 .format("kafka")
-                .option("kafka.bootstrap.servers", "34.176.50.2:9092")
+                .option("kafka.bootstrap.servers", "34.176.255.191:9092")
                 .option("subscribe", "test3")
                 .load();
+        ds.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)");
         // Start running the query that prints the data getting from Kafka 'test3' topic
         StreamingQuery query = ds.writeStream()
                 .outputMode("append")
@@ -32,7 +33,6 @@ public class App
                 .start();
 
         //Getting the data value as String
-        Dataset<Row> lines = ds.selectExpr("CAST(value AS STRING)");
         query.awaitTermination();
 
     }
