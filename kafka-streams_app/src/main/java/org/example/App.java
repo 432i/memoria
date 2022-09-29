@@ -10,6 +10,7 @@ import org.apache.kafka.streams.kstream.*;
 import org.apache.kafka.streams.processor.*;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Properties;
 import java.util.Scanner;
 
@@ -34,15 +35,15 @@ public class App
         if (dataset == 1){
             twitter_topic_connection(props);
         } else if (dataset == 2) {
-            iot_topic_connection(props);
-        }else {
             log_topic_connection(props);
+        }else {
+            iot_topic_connection(props);
         }
 
     }
 
     public static void twitter_topic_connection(Properties props) throws IOException {
-
+        System.out.println( "Iniciando comunicacion con el topico de twitter" );
         final StreamsBuilder builder = new StreamsBuilder();
 
         final Serde<String> stringSerde = Serdes.String();
@@ -55,21 +56,34 @@ public class App
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
                 .peek((key, value) -> System.out.println("twitterB key: " + key + " , value: " + value));
 
+        ValueJoiner<String, String, String> valueJoiner = (leftValue, rightValue) -> leftValue + " " + rightValue;
+
+        System.out.println("Initiating join operation");
+        KStream<String, String> combinedStream =
+                twitterA.join(
+                        twitterB,
+                        valueJoiner,
+                        JoinWindows.of(Duration.ofMinutes(10)),
+                        StreamJoined.with(Serdes.String(), stringSerde, stringSerde))
+                        .peek((key, value) -> System.out.println("Stream-Stream Join record key " + key + " value " + value)
+                );
+
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();
     }
 
     public static void iot_topic_connection(Properties props) throws IOException {
+        System.out.println( "Iniciando comunicacion con el topico de iot" );
 
         final StreamsBuilder builder = new StreamsBuilder();
 
         final Serde<String> stringSerde = Serdes.String();
 
-        KStream<String, String> twitterA = builder.stream("iotA",
+        KStream<String, String> iotA = builder.stream("iotA",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
                 .peek((key, value) -> System.out.println("iotA key: " + key + " , value: " + value));
 
-        KStream<String, String> twitterB = builder.stream("iotB",
+        KStream<String, String> iotB = builder.stream("iotB",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
                 .peek((key, value) -> System.out.println("iotB key: " + key + " , value: " + value));
 
@@ -78,16 +92,17 @@ public class App
     }
 
     public static void log_topic_connection(Properties props) throws IOException {
+        System.out.println( "Iniciando comunicacion con el topico de log" );
 
         final StreamsBuilder builder = new StreamsBuilder();
 
         final Serde<String> stringSerde = Serdes.String();
 
-        KStream<String, String> twitterA = builder.stream("logA",
+        KStream<String, String> logA = builder.stream("logA",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
                 .peek((key, value) -> System.out.println("logA key: " + key + " , value: " + value));
 
-        KStream<String, String> twitterB = builder.stream("logB",
+        KStream<String, String> logB = builder.stream("logB",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
                 .peek((key, value) -> System.out.println("logB key: " + key + " , value: " + value));
 
