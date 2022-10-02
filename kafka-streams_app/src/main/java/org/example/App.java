@@ -4,6 +4,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.*;
@@ -13,6 +14,9 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.Properties;
 import java.util.Scanner;
+
+import static org.apache.kafka.streams.kstream.Suppressed.BufferConfig.unbounded;
+import static org.apache.kafka.streams.kstream.Suppressed.untilWindowCloses;
 
 /**
  * Hello world!
@@ -43,10 +47,11 @@ public class App
     }
 
     public static void twitter_topic_connection(Properties props) throws IOException {
-        System.out.println( "Iniciando comunicacion con el topico de twitter" );
+        System.out.println( "Initiating connection with twitter topic" );
         final StreamsBuilder builder = new StreamsBuilder();
 
         final Serde<String> stringSerde = Serdes.String();
+        //final Serde<Integer> intSerde = Serdes.Integer();
 
         KStream<String, String> twitterA = builder.stream("twitterA",
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
@@ -56,24 +61,36 @@ public class App
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
                 .peek((key, value) -> System.out.println("twitterB key: " + key + " , value: " + value));
 
+        System.out.println("Initiating join operation");
         ValueJoiner<String, String, String> valueJoiner = (leftValue, rightValue) -> leftValue + " " + rightValue;
 
-        System.out.println("Initiating join operation");
         KStream<String, String> combinedStream =
                 twitterA.join(
                         twitterB,
                         valueJoiner,
                         JoinWindows.of(Duration.ofMinutes(10)),
                         StreamJoined.with(Serdes.String(), stringSerde, stringSerde))
-                        .peek((key, value) -> System.out.println("Stream-Stream Join record key " + key + " value " + value)
+                        .peek((key, value) -> System.out.println("Stream-Stream Join: record key " + key + ", value: " + value)
                 );
+
+        System.out.println("Initiating tumbling window operation");
+        combinedStream.groupByKey()
+                .windowedBy(TimeWindows.of(Duration.ofSeconds(30)))
+                .aggregate(() -> 0,
+                        (key, value, total) -> total + value.length(),
+                        Materialized.with(Serdes.String(), Serdes.Integer()))
+                        .suppress(untilWindowCloses(unbounded()))
+                .toStream()
+                .map((wk, value) -> KeyValue.pair(wk.key(),value))
+                .peek((key, value) -> System.out.println("Outgoing record - key " +key +", number of characters of the joined streams: " + value));
+
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();
     }
 
     public static void iot_topic_connection(Properties props) throws IOException {
-        System.out.println( "Iniciando comunicacion con el topico de iot" );
+        System.out.println( "Initiating connection with iot topic" );
 
         final StreamsBuilder builder = new StreamsBuilder();
 
@@ -86,13 +103,36 @@ public class App
         KStream<String, String> iotB = builder.stream("iotB",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
                 .peek((key, value) -> System.out.println("iotB key: " + key + " , value: " + value));
+        System.out.println("Initiating join operation");
+        ValueJoiner<String, String, String> valueJoiner = (leftValue, rightValue) -> leftValue + " " + rightValue;
+
+        KStream<String, String> combinedStream =
+                iotA.join(
+                                iotB,
+                                valueJoiner,
+                                JoinWindows.of(Duration.ofMinutes(10)),
+                                StreamJoined.with(Serdes.String(), stringSerde, stringSerde))
+                        .peek((key, value) -> System.out.println("Stream-Stream Join: record key " + key + ", value:" + value)
+                        );
+
+        System.out.println("Initiating tumbling window operation");
+        Duration windowSize = Duration.ofSeconds(30);
+        combinedStream.groupByKey()
+                .windowedBy(TimeWindows.of(windowSize))
+                .aggregate(() -> 0,
+                        (key, value, total) -> total + value.length(),
+                        Materialized.with(Serdes.String(), Serdes.Integer()))
+                .suppress(untilWindowCloses(unbounded()))
+                .toStream()
+                .map((wk, value) -> KeyValue.pair(wk.key(),value))
+                .peek((key, value) -> System.out.println("Outgoing record - key " +key +", number of characters of the joined streams: " + value));
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();
     }
 
     public static void log_topic_connection(Properties props) throws IOException {
-        System.out.println( "Iniciando comunicacion con el topico de log" );
+        System.out.println( "Initiating connection with log topic" );
 
         final StreamsBuilder builder = new StreamsBuilder();
 
