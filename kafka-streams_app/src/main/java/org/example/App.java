@@ -45,29 +45,29 @@ public class App
 
     }
 
-    public static void twitter_topic_connection(Properties props) throws IOException {
-        System.out.println( "Initiating connection with twitter topic" );
+    public static void iot_topic_connection(Properties props) throws IOException {
+        System.out.println( "Initiating connection with iot topic" );
         final StreamsBuilder builder = new StreamsBuilder();
 
         final Serde<String> stringSerde = Serdes.String();
         //final Serde<Integer> intSerde = Serdes.Integer();
 
-        KStream<String, String> twitterA = builder.stream("twitterA",
+        KStream<String, String> iotA = builder.stream("iotA",
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
                 .mapValues(value -> splitValue(value))
-                .peek((key, value) -> System.out.println("twitterA key: " + key + " , value: " + value));;
+                .peek((key, value) -> System.out.println("iotA key: " + key + " , value: " + value));;
 
-        KStream<String, String> twitterB = builder.stream("twitterB",
+        KStream<String, String> iotB = builder.stream("iotB",
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
                 .mapValues(value -> splitValue(value))
-                .peek((key, value) -> System.out.println("twitterB key: " + key + " , value: " + value));
+                .peek((key, value) -> System.out.println("iotB key: " + key + " , value: " + value));
 
         System.out.println("Initiating join operation");
         ValueJoiner<String, String, Float> valueJoiner = (leftValue, rightValue) -> Float.parseFloat(leftValue) + Float.parseFloat(rightValue);
 
         KStream<String, Float> combinedStream =
-                twitterA.join(
-                        twitterB,
+                iotA.join(
+                        iotB,
                         valueJoiner,
                         JoinWindows.of(Duration.ofMinutes(10)),
                         StreamJoined.with(Serdes.String(), stringSerde, stringSerde))
@@ -93,31 +93,31 @@ public class App
 
 
     public static String splitValue(String value){
-        //asumming an input of 2707176363363894:"2021-02-07 00:03:19,1612656199,63.3,17.4"
+        //asumming an input of type 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4
         String[] parts = value.split(",");
         return parts[3];
     }
 
-    public static void iot_topic_connection(Properties props) throws IOException {
-        System.out.println( "Initiating connection with iot topic" );
+    public static void twitter_topic_connection(Properties props) throws IOException {
+        System.out.println( "Initiating connection with twitter topic" );
 
         final StreamsBuilder builder = new StreamsBuilder();
 
         final Serde<String> stringSerde = Serdes.String();
 
-        KStream<String, String> iotA = builder.stream("iotA",
+        KStream<String, String> twitterA = builder.stream("twitterA",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .peek((key, value) -> System.out.println("iotA key: " + key + " , value: " + value));
+                .peek((key, value) -> System.out.println("twitterA key: " + key + " , value: " + value));
 
-        KStream<String, String> iotB = builder.stream("iotB",
+        KStream<String, String> twitterB = builder.stream("twitterB",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .peek((key, value) -> System.out.println("iotB key: " + key + " , value: " + value));
+                .peek((key, value) -> System.out.println("twitterB key: " + key + " , value: " + value));
         System.out.println("Initiating join operation");
         ValueJoiner<String, String, String> valueJoiner = (leftValue, rightValue) -> leftValue + " " + rightValue;
 
         KStream<String, String> combinedStream =
-                iotA.join(
-                                iotB,
+                twitterA.join(
+                                twitterB,
                                 valueJoiner,
                                 JoinWindows.of(Duration.ofMinutes(10)),
                                 StreamJoined.with(Serdes.String(), stringSerde, stringSerde))
