@@ -14,6 +14,8 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.Properties;
 import java.util.Scanner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.apache.kafka.streams.kstream.Suppressed.BufferConfig.unbounded;
 import static org.apache.kafka.streams.kstream.Suppressed.untilWindowCloses;
@@ -54,12 +56,12 @@ public class App
 
         KStream<String, String> iotA = builder.stream("iotA",
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value))
+                .mapValues(value -> splitValue(value, 0))
                 .peek((key, value) -> System.out.println("iotA key: " + key + " , value: " + value));;
 
         KStream<String, String> iotB = builder.stream("iotB",
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value))
+                .mapValues(value -> splitValue(value, 0))
                 .peek((key, value) -> System.out.println("iotB key: " + key + " , value: " + value));
 
         System.out.println("Initiating join operation");
@@ -88,14 +90,6 @@ public class App
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();
-    }
-
-
-
-    public static String splitValue(String value){
-        //asumming an input of type 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4
-        String[] parts = value.split(",");
-        return parts[3];
     }
 
     public static void twitter_topic_connection(Properties props) throws IOException {
@@ -148,10 +142,12 @@ public class App
 
         KStream<String, String> logA = builder.stream("logA",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
+                .mapValues(value -> splitValue(value, 2))
                 .peek((key, value) -> System.out.println("logA key: " + key + " , value: " + value));
 
         KStream<String, String> logB = builder.stream("logB",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
+                .mapValues(value -> splitValue(value, 2))
                 .peek((key, value) -> System.out.println("logB key: " + key + " , value: " + value));
         System.out.println("Initiating join operation");
         ValueJoiner<String, String, String> valueJoiner = (leftValue, rightValue) -> leftValue + " " + rightValue;
@@ -167,9 +163,9 @@ public class App
 
         System.out.println("Initiating tumbling window operation");
         combinedStream.groupByKey()
-                .windowedBy(TimeWindows.of(Duration.ofSeconds(15)))
+                .windowedBy(TimeWindows.of(Duration.ofSeconds(20)))
                 .aggregate(() -> 0,
-                        (key, value, total) -> total + value.length(),
+                        (key, value, total) -> total + check_if_error(value),
                         Materialized.with(Serdes.String(), Serdes.Integer()))
                 //.suppress(untilWindowCloses(unbounded()))
                 .toStream()
@@ -179,6 +175,48 @@ public class App
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();
+    }
+
+
+    //helper methods
+
+    //method to parse records from the different sources
+    public static String splitValue(String value, Integer source){
+        String[] parts = new String[0];
+        if(source == 0){ //iot line separator
+            //asumming an input of type 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4
+            parts = value.split(",");
+            return parts[3];
+        } else if (source == 2) { //logs line separator
+            // 31.56.96.51 - - [22/Jan/2019:03:56:16 +0330] "GET /image/60844/productModel/200x200 HTTP/1.1" 200 5667 "https://www.zanbil.ir/m/filter/b113" "Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36" "-"
+            //hay que sacarle las "
+            //[22/Jan/2019:03:56:16 +0330] GET /image/60844/productModel/200x200 HTTP/1.1 200 5667 https://www.zanbil.ir/m/filter/b113 Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36 -
+            String result = "";
+            Pattern pattern1 = Pattern.compile("HTTP.* /d{3}");
+            Pattern pattern2 = Pattern.compile(" /d{3} ");
+            Matcher matcher = pattern1.matcher(value);
+            if (matcher.matches()) result = matcher.group(0);
+            System.out.println(result);
+            Matcher matcher2 = pattern2.matcher(result);
+            if (matcher2.matches()) return matcher2.group(0);
+
+        }else{ //twitter line separator
+
+        }
+        return "";
+    }
+    //checks if the value is a 400-499 request code
+    // and return the count of them
+    public static Integer check_if_error(String value){
+        int errors_number = 0;
+        String[] numbers = value.split(" ");
+        if (Integer.parseInt(numbers[0]) >= 400 && Integer.parseInt(numbers[0]) < 500){
+            errors_number += 1;
+        }
+        if (Integer.parseInt(numbers[1]) >= 400 && Integer.parseInt(numbers[1]) < 500){
+            errors_number += 1;
+        }
+            return errors_number;
     }
 }
 
