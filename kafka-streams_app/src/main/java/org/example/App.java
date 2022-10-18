@@ -1,6 +1,5 @@
 package org.example;
 
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
@@ -8,7 +7,6 @@ import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.*;
-import org.apache.kafka.streams.processor.*;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -16,9 +14,6 @@ import java.util.Properties;
 import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static org.apache.kafka.streams.kstream.Suppressed.BufferConfig.unbounded;
-import static org.apache.kafka.streams.kstream.Suppressed.untilWindowCloses;
 
 /**
  * Hello world!
@@ -101,13 +96,15 @@ public class App
 
         KStream<String, String> twitterA = builder.stream("twitterA",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
+                .mapValues(value -> splitValue(value, 1))
                 .peek((key, value) -> System.out.println("twitterA key: " + key + " , value: " + value));
 
         KStream<String, String> twitterB = builder.stream("twitterB",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
+                .mapValues(value -> splitValue(value, 1))
                 .peek((key, value) -> System.out.println("twitterB key: " + key + " , value: " + value));
         System.out.println("Initiating join operation");
-        ValueJoiner<String, String, String> valueJoiner = (leftValue, rightValue) -> leftValue + " " + rightValue;
+        ValueJoiner<String, String, String> valueJoiner = (leftValue, rightValue) -> leftValue + "&-/-q&" + rightValue;
 
         KStream<String, String> combinedStream =
                 twitterA.join(
@@ -120,19 +117,24 @@ public class App
 
         System.out.println("Initiating tumbling window operation");
         combinedStream.groupByKey()
-                .windowedBy(TimeWindows.of(Duration.ofSeconds(15)))
-                .aggregate(() -> 0,
-                        (key, value, total) -> total + value.length(),
-                        Materialized.with(Serdes.String(), Serdes.Integer()))
+                .windowedBy(TimeWindows.of(Duration.ofSeconds(40)))
+                .aggregate(() -> "",
+                        (key, value, total) -> cut_string(total) + twitter_counter(value), //hay que cortar el largo de value, y no contar los que tengan null
+                        Materialized.with(Serdes.String(), Serdes.String()))
                 //.suppress(untilWindowCloses(unbounded()))
                 .toStream()
                 .map((wk, value) -> KeyValue.pair(wk.key(), value))
-                .peek((key, value) -> System.out.println("Outgoing record - key " +key +", number of characters of the joined streams: " + value));
+                .peek((key, value) -> System.out.println("FINAL WINDOW - key " +key +", number of normal tweets, RT and response tweets: " + value));
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();
     }
-
+    //50:RT @chocolate_cnft: Hmmm winner will be announced in few hours? You better don�t waste this opportunity!??
+    //50:Hola mundo
+    // 1 1 0
+    //50:@saludos a todos
+    //50:RT poto
+    // 1 2 1
     public static void log_topic_connection(Properties props) throws IOException {
         System.out.println( "Initiating connection with log topic" );
 
@@ -170,7 +172,7 @@ public class App
                 //.suppress(untilWindowCloses(unbounded()))
                 .toStream()
                 .map((wk, value) -> KeyValue.pair(wk.key(),value))
-                .peek((key, value) -> System.out.println("Outgoing record - key " +key +", number of characters of the joined streams: " + value));
+                .peek((key, value) -> System.out.println("FINAL WINDOW - client ip " +key +", number of error request (between 400 and 499): " + value));
 
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
@@ -188,22 +190,13 @@ public class App
             parts = value.split(",");
             return parts[3];
         } else if (source == 2) { //logs line separator
-            // 31.56.96.51 - - [22/Jan/2019:03:56:16 +0330] "GET /image/60844/productModel/200x200 HTTP/1.1" 200 5667 "https://www.zanbil.ir/m/filter/b113" "Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36" "-"
-            //hay que sacarle las "
             //[22/Jan/2019:03:56:16 +0330] GET /image/60844/productModel/200x200 HTTP/1.1 200 5667 https://www.zanbil.ir/m/filter/b113 Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36 -
-            String result = "";
-            Pattern pattern1 = Pattern.compile("HTTP.* /d{3}");
-            Pattern pattern2 = Pattern.compile(" /d{3} ");
-            Matcher matcher = pattern1.matcher(value);
-            if (matcher.matches()) result = matcher.group(0);
-            System.out.println(result);
-            Matcher matcher2 = pattern2.matcher(result);
-            if (matcher2.matches()) return matcher2.group(0);
-
+            parts = value.split("(1.1\" )|(1.0\" )|(\" (?=\\d{3}))");
+            parts = parts[1].split(" ");
+            return parts[0];
         }else{ //twitter line separator
-
+            return value.substring(0, 5);
         }
-        return "";
     }
     //checks if the value is a 400-499 request code
     // and return the count of them
@@ -217,6 +210,40 @@ public class App
             errors_number += 1;
         }
             return errors_number;
+    }
+    //mantains the total string in a fixed size
+    public static String cut_string(String total){
+        if(total.length() > 6){
+            return total.substring(total.length() - 4);
+        }
+        return total;
+    }
+    //counts and store in constant variables the type of tweet received
+    public static int NORMAL_TWEETS = 0;
+    public static int RE_TWEETS = 0;
+    public static int RESPONSES = 0;
+    public static String twitter_counter(String tweets){
+        String[] parts = tweets.split("&-/-q&");
+        Pattern rt_pattern = Pattern.compile("^RT");
+        Pattern response_pattern = Pattern.compile("^@");
+        String tweet;
+        for (int i = 0; i < parts.length; i++){
+
+            tweet = parts[i];
+            rt_pattern = Pattern.compile("^RT");
+            response_pattern = Pattern.compile("^@");
+            Matcher rt_matcher = rt_pattern.matcher(tweet);
+            Matcher response_matcher = response_pattern.matcher(tweet);
+            if(rt_matcher.find()){
+                RE_TWEETS += 1;
+            } else if (response_matcher.find()) {
+                RESPONSES += 1;
+            }else{
+                NORMAL_TWEETS += 1;
+            }
+        }
+
+        return NORMAL_TWEETS +" "+ RE_TWEETS +" "+ RESPONSES;
     }
 }
 

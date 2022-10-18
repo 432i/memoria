@@ -7,7 +7,7 @@ public class StreamsTimestampExtractor {
     static class myTimestampExtractor implements TimestampExtractor {
         @Override
         public long extract(ConsumerRecord<Object, Object> record, long partitionTime){
-            System.out.println( "key "+record.key()+" with timestamp: "+ record.timestamp());
+            //System.out.println( "key "+record.key()+" with timestamp: "+ record.timestamp());
             return record.timestamp();
         }
 

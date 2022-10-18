@@ -11,6 +11,8 @@ import java.util.Properties;
 import java.util.HashSet;
 import java.util.Set;
 import java.io.InputStream;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.twitter.clientlib.TwitterCredentialsBearer;
 import com.twitter.clientlib.ApiException;
@@ -65,27 +67,26 @@ public class TestProducer {
            try { //here the record is sent to kafka
                JSONObject jsonObject = new JSONObject(line);
                String tweetText = jsonObject.getJSONObject("data").getString("text");
-               String id = jsonObject.getJSONObject("data").getString("author_id");
-               System.out.println(tweetText);
-               System.out.println(id);
-               System.out.println(jsonObject.toString());
-               String key = "";
-               String value = "";
-               //KafkaProducer producer = new KafkaProducer(properties);
-               //int j = 0;
-               //int i = 0;
-               //while(tweetText != null && j != 10){
-               //    if(i == 0) {
-               //        producer.send(new ProducerRecord("twitterA", key, value));
-               //        i = 1;
-               //    }else{
-               //        producer.send(new ProducerRecord("twitterB", key, value));
-               //        i = 0;
-               //    }
-               //    j += 1;
-               //}
+               //String id = jsonObject.getJSONObject("data").getString("author_id");
+               //System.out.println(tweetText);
+               String key = "1";
+               String value = tweetText;
 
-               //producer.close();
+               KafkaProducer producer = new KafkaProducer(properties);
+               int j = 0;
+               int i = 0;
+               while(tweetText != null && j != 10){
+                   if(i == 0) {
+                       producer.send(new ProducerRecord("twitterA", key, value));
+                       i = 1;
+                   }else{
+                       producer.send(new ProducerRecord("twitterB", key, value));
+                       i = 0;
+                   }
+                   j += 1;
+               }
+
+               producer.close();
            }catch (JSONException err){
                System.out.println("Error al convertir el string en JSON");
                System.out.println(err);
@@ -108,7 +109,7 @@ public class TestProducer {
 
     public void logs_producer(Properties properties) throws IOException {
         KafkaProducer producer = new KafkaProducer(properties);
-        String path = "/Users/aevi1/Documents/2022-1/MEMORIA/codigos/datasets/weblogs/access.log";
+        String path = "C:/Users/aevi1/OneDrive/Documentos/access.log";
         String line = "";
         BufferedReader br = new BufferedReader(new FileReader(path));
         int j = 0;
@@ -118,7 +119,6 @@ public class TestProducer {
             //parts[0] + ":" + parts[1];
             String key = record_values[0];
             String value = record_values[1];
-            System.out.println(line);
             if(i == 0) {
                 producer.send(new ProducerRecord("logsA", key, value));
                 i = 1;
@@ -169,10 +169,8 @@ public class TestProducer {
         } else if (source == 1) { //logs line separador
             // line type
             // 31.56.96.51 - - [22/Jan/2019:03:56:16 +0330] "GET /image/60844/productModel/200x200 HTTP/1.1" 200 5667 "https://www.zanbil.ir/m/filter/b113" "Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36" "-"
-            parts = line.split(" - - ");
+            parts = line.split("( - - )|( - )");
             //parts[0] + ":" + parts[1];
-        }else{ //twitter line separator
-
         }
         return parts;
     }
