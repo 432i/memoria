@@ -10,6 +10,7 @@ import org.apache.kafka.streams.kstream.*;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Properties;
 import java.util.Scanner;
 import java.util.regex.Matcher;
@@ -25,7 +26,7 @@ public class App
         System.out.println( "Iniciando consumidor de kafka streams" );
         Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "streams-test");
-        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "34.176.255.191:9092");
+        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "34.176.127.40:9092");
         Scanner scanner = new Scanner(System.in);
         System.out.println("Elige el dataset:");
         System.out.println("1.- Twitter");
@@ -117,9 +118,9 @@ public class App
 
         System.out.println("Initiating tumbling window operation");
         combinedStream.groupByKey()
-                .windowedBy(TimeWindows.of(Duration.ofSeconds(40)))
+                .windowedBy(TimeWindows.of(Duration.ofSeconds(20)))
                 .aggregate(() -> "",
-                        (key, value, total) -> cut_string(total) + twitter_counter(value), //hay que cortar el largo de value, y no contar los que tengan null
+                        (key, value, total) -> cut_string(total) + twitter_counter(value),
                         Materialized.with(Serdes.String(), Serdes.String()))
                 //.suppress(untilWindowCloses(unbounded()))
                 .toStream()
@@ -129,12 +130,7 @@ public class App
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();
     }
-    //50:RT @chocolate_cnft: Hmmm winner will be announced in few hours? You better don�t waste this opportunity!??
-    //50:Hola mundo
-    // 1 1 0
-    //50:@saludos a todos
-    //50:RT poto
-    // 1 2 1
+
     public static void log_topic_connection(Properties props) throws IOException {
         System.out.println( "Initiating connection with log topic" );
 
@@ -190,9 +186,10 @@ public class App
             parts = value.split(",");
             return parts[3];
         } else if (source == 2) { //logs line separator
-            //[22/Jan/2019:03:56:16 +0330] GET /image/60844/productModel/200x200 HTTP/1.1 200 5667 https://www.zanbil.ir/m/filter/b113 Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36 -
+            //[22/Jan/2019:03:56:16 +0330] "GET /image/60844/productModel/200x200 HTTP/1.1" 402 5667 "https://www.zanbil.ir/m/filter/b113" "Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36" "-
             parts = value.split("(1.1\" )|(1.0\" )|(\" (?=\\d{3}))");
             parts = parts[1].split(" ");
+            //System.out.println(Arrays.toString(parts));
             return parts[0];
         }else{ //twitter line separator
             return value.substring(0, 5);
@@ -213,9 +210,7 @@ public class App
     }
     //mantains the total string in a fixed size
     public static String cut_string(String total){
-        if(total.length() > 6){
-            return total.substring(total.length() - 4);
-        }
+        total = "";
         return total;
     }
     //counts and store in constant variables the type of tweet received
@@ -223,25 +218,27 @@ public class App
     public static int RE_TWEETS = 0;
     public static int RESPONSES = 0;
     public static String twitter_counter(String tweets){
-        String[] parts = tweets.split("&-/-q&");
-        Pattern rt_pattern = Pattern.compile("^RT");
-        Pattern response_pattern = Pattern.compile("^@");
-        String tweet;
-        for (int i = 0; i < parts.length; i++){
-
-            tweet = parts[i];
-            rt_pattern = Pattern.compile("^RT");
-            response_pattern = Pattern.compile("^@");
-            Matcher rt_matcher = rt_pattern.matcher(tweet);
-            Matcher response_matcher = response_pattern.matcher(tweet);
-            if(rt_matcher.find()){
-                RE_TWEETS += 1;
-            } else if (response_matcher.find()) {
-                RESPONSES += 1;
-            }else{
-                NORMAL_TWEETS += 1;
+        if(!tweets.contains("null")){
+            String[] parts = tweets.split("&-/-q&");
+            Pattern rt_pattern = Pattern.compile("^RT");
+            Pattern response_pattern = Pattern.compile("^@");
+            String tweet;
+            for (int i = 0; i < parts.length; i++){
+                tweet = parts[i];
+                rt_pattern = Pattern.compile("^RT");
+                response_pattern = Pattern.compile("^@");
+                Matcher rt_matcher = rt_pattern.matcher(tweet);
+                Matcher response_matcher = response_pattern.matcher(tweet);
+                if(rt_matcher.find()){
+                    RE_TWEETS += 1;
+                } else if (response_matcher.find()) {
+                    RESPONSES += 1;
+                }else{
+                    NORMAL_TWEETS += 1;
+                }
             }
         }
+
 
         return NORMAL_TWEETS +" "+ RE_TWEETS +" "+ RESPONSES;
     }
