@@ -24,7 +24,7 @@ import org.json.JSONObject;
 public class TestProducer {
     public TestProducer(int latency, int dataset) throws IOException {
         Properties properties = new Properties();
-        properties.put("bootstrap.servers", "34.176.255.191:9092");
+        properties.put("bootstrap.servers", "34.176.127.40:9092");
         properties.put("linger.ms", latency);
         properties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
         properties.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
@@ -75,7 +75,7 @@ public class TestProducer {
                KafkaProducer producer = new KafkaProducer(properties);
                int j = 0;
                int i = 0;
-               while(tweetText != null && j != 10){
+               while(tweetText != null && j != 20){
                    if(i == 0) {
                        producer.send(new ProducerRecord("twitterA", key, value));
                        i = 1;
@@ -120,10 +120,10 @@ public class TestProducer {
             String key = record_values[0];
             String value = record_values[1];
             if(i == 0) {
-                producer.send(new ProducerRecord("logsA", key, value));
+                producer.send(new ProducerRecord("logA", key, value));
                 i = 1;
             }else{
-                producer.send(new ProducerRecord("logsB", key, value));
+                producer.send(new ProducerRecord("logB", key, value));
                 i = 0;
             }
             j += 1;
@@ -138,7 +138,7 @@ public class TestProducer {
         BufferedReader br = new BufferedReader(new FileReader(path));
         int j = 0;
         int i = 0;
-        while((line = br.readLine()) != null && j != 2){
+        while((line = br.readLine()) != null && j != 20){
             //parts[4] + ":" + parts[0] + "," + parts[1] + "," + parts[2] + "," + parts[3];
             String[] record_values = split_lines(line, 0);
             String key = record_values[4];

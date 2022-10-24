@@ -81,8 +81,8 @@ public class App
                         //.suppress(untilWindowCloses(unbounded()))
                 .toStream()
                 .map((wk, value) -> KeyValue.pair(wk.key(), value))
-                .peek((key, value) -> System.out.println("FINAL WINDOW - key " +key +", average temperature in celsius: " + value));
-
+                .peek((key, value) -> System.out.println("FINAL WINDOW - key " +key +", average temperature in celsius: " + value))
+                .to("iotResults", Produced.with(Serdes.String(), Serdes.Float()));
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();
@@ -125,7 +125,8 @@ public class App
                 //.suppress(untilWindowCloses(unbounded()))
                 .toStream()
                 .map((wk, value) -> KeyValue.pair(wk.key(), value))
-                .peek((key, value) -> System.out.println("FINAL WINDOW - key " +key +", number of normal tweets, RT and response tweets: " + value));
+                .peek((key, value) -> System.out.println("FINAL WINDOW - key " +key +", number of normal tweets, RT and response tweets: " + value))
+                .to("twitterResults", Produced.with(Serdes.String(), Serdes.String()));
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();
@@ -167,8 +168,9 @@ public class App
                         Materialized.with(Serdes.String(), Serdes.Integer()))
                 //.suppress(untilWindowCloses(unbounded()))
                 .toStream()
-                .map((wk, value) -> KeyValue.pair(wk.key(),value))
-                .peek((key, value) -> System.out.println("FINAL WINDOW - client ip " +key +", number of error request (between 400 and 499): " + value));
+                .map((wk, value) -> KeyValue.pair(wk.key(), value))
+                .peek((key, value) -> System.out.println("FINAL WINDOW - client ip " +key +", number of error request (between 400 and 499): " + value))
+                .to("logsResults", Produced.with(Serdes.String(), Serdes.Integer()));
 
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
