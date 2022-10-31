@@ -4,10 +4,8 @@ package org.example;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.kafka.KafkaIO;
 import org.apache.beam.sdk.io.kafka.KafkaRecord;
-import org.apache.beam.sdk.transforms.DoFn;
-import org.apache.beam.sdk.transforms.MapElements;
-import org.apache.beam.sdk.transforms.ParDo;
-import org.apache.beam.sdk.transforms.SimpleFunction;
+import org.apache.beam.sdk.transforms.*;
+import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TypeDescriptor;
 import org.apache.beam.sdk.values.TypeDescriptors;
@@ -38,6 +36,7 @@ public class App
 
     }
     public static void iot_topic_connection(String IP) {
+        System.out.println( "Initiating connection with iot topic" );
         Pipeline pipeline = Pipeline.create();
         PCollection<KafkaRecord<String, String>> pCollectionA = pipeline.apply(KafkaIO.<String, String>read()
                 .withBootstrapServers(IP)
@@ -51,17 +50,24 @@ public class App
                 .withKeyDeserializer(StringDeserializer.class)
                 .withValueDeserializer(StringDeserializer.class)
         );
-        PCollection<KafkaRecord<String, String>> wrdA = pCollectionA.apply(
+
+        PCollection<KV<String, String>> wrdA = pCollectionA.apply(
+                MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
+                        .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), "poto"))
+                );
+
+        wrdA.apply(
                 MapElements.via(
-                        new SimpleFunction<KafkaRecord<String, String>, KafkaRecord<String, String>>() {
+                        new SimpleFunction<KV<String, String>, KV<String, String>>() {
                             @Override
-                            public KafkaRecord<String, String> apply(KafkaRecord<String, String> record) {
-                                System.out.println(record);
+                            public KV<String, String> apply(KV<String, String> record) {
+                                System.out.println(
+                                        ", llave:"+record.getKey()+", valor:"+record.getValue());
                                 return record;
                             }
                         }));
 
-        PCollection<Integer> wrdB = pCollectionB.apply(
+        PCollection<String> wrdB = pCollectionB.apply(
                 ParDo.of(new StreamOperation()));
 
         //Here we are starting the pipeline
