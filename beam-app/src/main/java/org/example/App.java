@@ -4,11 +4,9 @@ package org.example;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.kafka.KafkaIO;
 import org.apache.beam.sdk.io.kafka.KafkaRecord;
+import org.apache.beam.sdk.extensions.joinlibrary.Join;
 import org.apache.beam.sdk.transforms.*;
-import org.apache.beam.sdk.values.KV;
-import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.values.TypeDescriptor;
-import org.apache.beam.sdk.values.TypeDescriptors;
+import org.apache.beam.sdk.values.*;
 import org.apache.kafka.common.serialization.StringDeserializer;
 
 import java.io.IOException;
@@ -53,22 +51,29 @@ public class App
 
         PCollection<KV<String, String>> wrdA = pCollectionA.apply(
                 MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
-                        .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), "poto"))
+                        .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),0)))
                 );
 
-        wrdA.apply(
+        PCollection<KV<String, String>> wrdB = pCollectionB.apply(
+                MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
+                        .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),0)))
+        );
+        //al parecer hay que implementar el windowing para que el join funcione
+        PCollection<KV<String, KV<String, String>>> combinedCollections = Join.innerJoin(wrdA, wrdB);
+
+        combinedCollections.apply( //method to print converted records
                 MapElements.via(
-                        new SimpleFunction<KV<String, String>, KV<String, String>>() {
+                        new SimpleFunction<KV<String, KV<String, String>>, KV<String, KV<String, String>>>() {
                             @Override
-                            public KV<String, String> apply(KV<String, String> record) {
+                            public KV<String, KV<String, String>> apply(KV<String, KV<String, String>> record) {
                                 System.out.println(
-                                        ", llave:"+record.getKey()+", valor:"+record.getValue());
+                                        ", 1:"+record.getKey()+", 0:"+record.getValue());
                                 return record;
                             }
                         }));
 
-        PCollection<String> wrdB = pCollectionB.apply(
-                ParDo.of(new StreamOperation()));
+        //PCollection<String> wrdB = pCollectionB.apply(
+        //        ParDo.of(new StreamOperation()));
 
         //Here we are starting the pipeline
         pipeline.run();
