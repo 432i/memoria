@@ -4,17 +4,15 @@ import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.*;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.streaming.StreamingQuery;
-import org.apache.spark.sql.streaming.StreamingQueryException;
-
 import java.util.Scanner;
-import java.util.concurrent.TimeoutException;
 
+import static org.apache.spark.sql.functions.expr;
 
 
 public class App {
     public static void main(String[] args) throws Exception {
         System.out.println("Iniciando consumidor de apache spark");
-        String ip = "34.176.127.40:9092";
+        String ip = "34.176.50.58:9092";
         Scanner scanner = new Scanner(System.in);
         System.out.println("Elige el dataset:");
         System.out.println("1.- Twitter");
@@ -31,40 +29,72 @@ public class App {
     }
 
     public static void iot_topic_connection(String IP) throws Exception {
+        System.out.println( "Initiating connection with iot topic" );
         SparkSession spark = SparkSession
                 .builder()
                 .appName("App")
                 .master("local")
                 .getOrCreate();
-
+        spark.sparkContext().setLogLevel("ERROR");
         Dataset<Row> iotA = spark
                 .readStream()
                 .format("kafka")
                 .option("kafka.bootstrap.servers", IP)
                 .option("subscribe", "iotA")
                 .load();
-        iotA.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)");
+        iotA = iotA.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)",
+                "CAST(topic AS STRING)", "CAST(timestamp AS TIMESTAMP)");
+        iotA = iotA.withColumnRenamed("key", "keyA");
+        iotA = iotA.withColumnRenamed("value", "valueA");
+        iotA = iotA.withColumnRenamed("topic", "topicA");
+        iotA = iotA.withColumnRenamed("timestamp", "timestampA");
         Dataset<Row> iotB = spark
                 .readStream()
                 .format("kafka")
                 .option("kafka.bootstrap.servers", IP)
                 .option("subscribe", "iotB")
                 .load();
-        iotB.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)");
+        iotB = iotB.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)",
+                "CAST(topic AS STRING)", "CAST(timestamp AS TIMESTAMP)");
+        iotB = iotB.withColumnRenamed("key", "keyB");
+        iotB = iotB.withColumnRenamed("value", "valueB");
+        iotB = iotB.withColumnRenamed("topic", "topicB");
+        iotB = iotB.withColumnRenamed("timestamp", "timestampB");
 
-        iotA.map((MapFunction<Row, Row>) row -> {System.out.println(row.get(0)+" "+row.get(1)+" "+row.get(2)+" "+row.get(3));
-            return row;
-        }, RowEncoder.apply(iotA.schema()));
-        Dataset<Row> mapped_iotA = iotA.map((MapFunction<Row, Row>) row -> {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0));
-        }, RowEncoder.apply(iotA.schema()));
-        Dataset<Row> mapped_iotB = iotB.map((MapFunction<Row, Row>) row -> {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0));
-        }, RowEncoder.apply(iotA.schema()));
 
-        Dataset<Row> mapped_iotA_watermark = mapped_iotA.withWatermark("key", "2 hours");
-        Dataset<Row> mapped_iotB_watermark = mapped_iotB.withWatermark("key", "3 hours");
+        Dataset<Row> mapped_iotA = iotA.map((MapFunction<Row, Row>) row ->
+        {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0), row.get(2), row.get(3));},
+                RowEncoder.apply(iotA.schema()));
+        Dataset<Row> mapped_iotB = iotB.map((MapFunction<Row, Row>) row ->
+        {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0), row.get(2), row.get(3));},
+                RowEncoder.apply(iotB.schema()));
 
+        //Dataset<Row> mapped_iotA_watermark = mapped_iotA.withWatermark("timestamp", "2 hours");
+        //Dataset<Row> mapped_iotB_watermark = mapped_iotB.withWatermark("timestamp", "3 hours");
+
+        Dataset<Row> joined_streams = mapped_iotA.join(mapped_iotB, expr(
+                "keyA = keyB AND " +
+                        "timestampA >= timestampB AND " +
+                        "timestampA <= timestampB + interval 20 second ")
+        );   // key is common in both DataFrames
+
+        //1:2021-02-07 00:03:19,1612656199,63.3,17.1
+        //1:2021-02-07 00:03:19,1612656199,63.3,17.2
         // Start running the query that prints the data getting from Kafka 'iotA' topic
         StreamingQuery query = iotA.writeStream()
+                .outputMode("append")
+                .format("console")
+                .start();
+        mapped_iotA.writeStream()
+                .outputMode("append")
+                .format("console")
+                .start();
+        mapped_iotB.writeStream()
+                .outputMode("append")
+                .format("console")
+                .start();
+
+        joined_streams.writeStream()
                 .outputMode("append")
                 .format("console")
                 .start();
