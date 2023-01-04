@@ -1,24 +1,22 @@
 package org.example;
 
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.functions.JoinFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.connector.kafka.source.KafkaSourceBuilder;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.connector.kafka.source.reader.deserializer.KafkaRecordDeserializationSchema;
-import org.apache.flink.streaming.api.functions.source.FromElementsFunction;
-import org.apache.flink.streaming.api.functions.source.SourceFunction;
-import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumerBase;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.connectors.kafka.KafkaDeserializationSchema;
-import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 
-import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,7 +25,7 @@ public class App
 {
     public static void main( String[] args ) throws Exception {
         System.out.println( "Iniciando consumidor de flink" );
-        String ip = "34.176.255.191:9092";
+        String ip = "34.176.50.58:9092";
         Scanner scanner = new Scanner(System.in);
         System.out.println("Elige el dataset:");
         System.out.println("1.- Twitter");
@@ -44,88 +42,117 @@ public class App
     }
     public static void iot_topic_connection( String IP) throws Exception {
         System.out.println( "Initiating connection with iot topic" );
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
 
-        KafkaSource<ConsumerRecord> iotA = KafkaSource.<ConsumerRecord>builder()
+        KafkaSource<KafkaEvent> iotA = KafkaSource.<KafkaEvent>builder()
                 .setBootstrapServers(IP)
                 .setTopics("iotA")
-                .setStartingOffsets(OffsetsInitializer.earliest())
-                .setDeserializer(KafkaRecordDeserializationSchema.of(new KafkaDeserializationSchema<ConsumerRecord>() {
+                .setStartingOffsets(OffsetsInitializer.latest())
+                .setDeserializer(KafkaRecordDeserializationSchema.of(new KafkaDeserializationSchema<KafkaEvent>() {
                     @Override
-                    public boolean isEndOfStream(ConsumerRecord record) {
+                    public boolean isEndOfStream(KafkaEvent record) {
                         return false;
                     }
-
                     @Override
-                    public ConsumerRecord deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
+                    public KafkaEvent deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
                         String key = new String(record.key(), StandardCharsets.UTF_8);
                         String value = new String(record.value(), StandardCharsets.UTF_8);
-                        return new ConsumerRecord(
+                        //System.out.println(record.timestamp());
+                        return new KafkaEvent(
+                                key,
+                                value,
                                 record.topic(),
                                 record.partition(),
                                 record.offset(),
-                                key,
-                                value
+                                record.timestamp()
                         );
                     }
-
                     @Override
-                    public TypeInformation<ConsumerRecord> getProducedType() {
-                        TypeInformation<ConsumerRecord> typeInfo = TypeInformation.of(ConsumerRecord.class);
+                    public TypeInformation<KafkaEvent> getProducedType() {
+                        TypeInformation<KafkaEvent> typeInfo = TypeInformation.of(KafkaEvent.class);
                         return typeInfo;
                     }
                 }))
                 .build();
-        KafkaSource<ConsumerRecord> iotB = KafkaSource.<ConsumerRecord>builder()
+        KafkaSource<KafkaEvent> iotB = KafkaSource.<KafkaEvent>builder()
                 .setBootstrapServers(IP)
-                .setTopics("iotA")
-                .setStartingOffsets(OffsetsInitializer.earliest())
-                .setDeserializer(KafkaRecordDeserializationSchema.of(new KafkaDeserializationSchema<ConsumerRecord>() {
+                .setTopics("iotB")
+                .setStartingOffsets(OffsetsInitializer.latest())
+                .setDeserializer(KafkaRecordDeserializationSchema.of(new KafkaDeserializationSchema<KafkaEvent>() {
                     @Override
-                    public boolean isEndOfStream(ConsumerRecord record) {
+                    public boolean isEndOfStream(KafkaEvent record) {
                         return false;
                     }
 
                     @Override
-                    public ConsumerRecord deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
+                    public KafkaEvent deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
                         String key = new String(record.key(), StandardCharsets.UTF_8);
                         String value = new String(record.value(), StandardCharsets.UTF_8);
-                        return new ConsumerRecord(
+                        return new KafkaEvent(
+                                key,
+                                value,
                                 record.topic(),
                                 record.partition(),
                                 record.offset(),
-                                key,
-                                value
+                                record.timestamp()
                         );
                     }
 
                     @Override
-                    public TypeInformation<ConsumerRecord> getProducedType() {
-                        TypeInformation<ConsumerRecord> typeInfo = TypeInformation.of(ConsumerRecord.class);
+                    public TypeInformation<KafkaEvent> getProducedType() {
+                        TypeInformation<KafkaEvent> typeInfo = TypeInformation.of(KafkaEvent.class);
                         return typeInfo;
                     }
                 }))
                 .build();
 
-        DataStream<ConsumerRecord> iotA_datastream = env.fromSource(iotA, WatermarkStrategy.forMonotonousTimestamps(), "Kafka Source");
-        DataStream<ConsumerRecord> iotB_datastream = env.fromSource(iotB, WatermarkStrategy.forMonotonousTimestamps(), "Kafka Source");
+        DataStream<KafkaEvent> iotA_datastream = env.fromSource(iotA,
+                WatermarkStrategy.<KafkaEvent>forBoundedOutOfOrderness(Duration.ofSeconds(20))
+                        .withTimestampAssigner((event, timestamp) -> event.timestamp), "Kafka Source");
+        DataStream<KafkaEvent> iotB_datastream = env.fromSource(iotB,
+                WatermarkStrategy.<KafkaEvent>forBoundedOutOfOrderness(Duration.ofSeconds(20))
+                        .withTimestampAssigner((event, timestamp) -> event.timestamp), "Kafka Source");
 
-        iotA_datastream.map(new MapFunction<ConsumerRecord, ConsumerRecord>() {
-            @Override
-            public ConsumerRecord map(ConsumerRecord record) throws Exception {
-                String new_value = splitValue((String) record.value(), 0);
-                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.key(), new_value);
-            }
-        }).map((MapFunction<ConsumerRecord, String>) record -> "Value from kafka: " + record.value() + "  Key from kafka " + record.key()).print();
+        DataStream<KafkaEvent> mapped_iotA = iotA_datastream
+                .map((MapFunction<KafkaEvent, KafkaEvent>) record -> {
+                    String new_value = splitValue(record.value, 0);
+                    return new KafkaEvent(record.key, new_value, record.topic, record.partition,
+                            record.offset, record.timestamp);
+                })
+                .keyBy(record -> record.key);
+        DataStream<KafkaEvent> mapped_iotB = iotB_datastream
+                .map((MapFunction<KafkaEvent, KafkaEvent>) record -> {
+                    String new_value = splitValue(record.value, 0);
+                    return new KafkaEvent(record.key, new_value, record.topic, record.partition,
+                            record.offset, record.timestamp);
+                })
+                .keyBy(record -> record.key);
 
-        iotB_datastream.map(new MapFunction<ConsumerRecord, ConsumerRecord>() {
-            @Override
-            public ConsumerRecord map(ConsumerRecord record) throws Exception {
-                String new_value = splitValue((String) record.value(), 0);
-                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.key(), new_value);
-            }
-        }).map((MapFunction<ConsumerRecord, String>) record -> "Value from kafka: " + record.value() + "  Key from kafka " + record.key()).print();
-
+        DataStream<String> joined_streams = mapped_iotA.join(mapped_iotB)
+                .where(new KeySelector<KafkaEvent, String>() {
+                    @Override
+                    public String getKey(KafkaEvent record) throws Exception {
+                        System.out.println("getkey1"+record.key+record.value);
+                        return record.key;
+                    }
+                })
+                .equalTo(new KeySelector<KafkaEvent, String>() {
+                    @Override
+                    public String getKey(KafkaEvent record) throws Exception {
+                        System.out.println("getkey2"+ record.key+record.value);
+                        return record.key;
+                    }
+                })
+                .window(TumblingEventTimeWindows.of(Time.seconds(10)))
+                .apply(new JoinFunction<KafkaEvent, KafkaEvent, String> (){
+                    @Override
+                    public String join(KafkaEvent record1, KafkaEvent record2) throws Exception {
+                        System.out.println(" EN JOIN value1" + record1.value + "value2" + record2.value);
+                        return "null";
+                    }
+                });
+        joined_streams.print();
+        //mapped_iotA.map((MapFunction<ConsumerRecord, String>) record -> "final_timestamp: "+record.timestamp()).print();
         env.execute();
     }
     public static void twitter_topic_connection(String IP) throws Exception{
@@ -150,6 +177,11 @@ public class App
                                 record.topic(),
                                 record.partition(),
                                 record.offset(),
+                                record.timestamp(),
+                                record.timestampType(),
+                                record.checksum(),
+                                record.serializedKeySize(),
+                                record.serializedValueSize(),
                                 key,
                                 value
                         );
@@ -180,6 +212,11 @@ public class App
                                 record.topic(),
                                 record.partition(),
                                 record.offset(),
+                                record.timestamp(),
+                                record.timestampType(),
+                                record.checksum(),
+                                record.serializedKeySize(),
+                                record.serializedValueSize(),
                                 key,
                                 value
                         );
@@ -200,7 +237,8 @@ public class App
             @Override
             public ConsumerRecord map(ConsumerRecord record) throws Exception {
                 String new_value = splitValue((String) record.value(), 3);
-                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.key(), new_value);
+                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.timestamp(), record.timestampType(),
+                        record.checksum(), record.serializedKeySize(), record.serializedValueSize(), record.key(), new_value);
             }
         }).map((MapFunction<ConsumerRecord, String>) record -> "Value from kafka: " + record.value() + "  Key from kafka " + record.key()).print();
 
@@ -208,7 +246,8 @@ public class App
             @Override
             public ConsumerRecord map(ConsumerRecord record) throws Exception {
                 String new_value = splitValue((String) record.value(), 3);
-                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.key(), new_value);
+                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.timestamp(), record.timestampType(),
+                        record.checksum(), record.serializedKeySize(), record.serializedValueSize(), record.key(), new_value);
             }
         }).map((MapFunction<ConsumerRecord, String>) record -> "Value from kafka: " + record.value() + "  Key from kafka " + record.key()).print();
 
@@ -236,6 +275,11 @@ public class App
                                 record.topic(),
                                 record.partition(),
                                 record.offset(),
+                                record.timestamp(),
+                                record.timestampType(),
+                                record.checksum(),
+                                record.serializedKeySize(),
+                                record.serializedValueSize(),
                                 key,
                                 value
                         );
@@ -266,6 +310,11 @@ public class App
                                 record.topic(),
                                 record.partition(),
                                 record.offset(),
+                                record.timestamp(),
+                                record.timestampType(),
+                                record.checksum(),
+                                record.serializedKeySize(),
+                                record.serializedValueSize(),
                                 key,
                                 value
                         );
@@ -286,7 +335,8 @@ public class App
             @Override
             public ConsumerRecord map(ConsumerRecord record) throws Exception {
                 String new_value = splitValue((String) record.value(), 2);
-                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.key(), new_value);
+                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.timestamp(), record.timestampType(),
+                        record.checksum(), record.serializedKeySize(), record.serializedValueSize(), record.key(), new_value);
             }
         }).map((MapFunction<ConsumerRecord, String>) record -> "Value from kafka: " + record.value() + "  Key from kafka " + record.key()).print();
 
@@ -294,7 +344,8 @@ public class App
             @Override
             public ConsumerRecord map(ConsumerRecord record) throws Exception {
                 String new_value = splitValue((String) record.value(), 2);
-                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.key(), new_value);
+                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.timestamp(), record.timestampType(),
+                        record.checksum(), record.serializedKeySize(), record.serializedValueSize(), record.key(), new_value);
             }
         }).map((MapFunction<ConsumerRecord, String>) record -> "Value from kafka: " + record.value() + "  Key from kafka " + record.key()).print();
 

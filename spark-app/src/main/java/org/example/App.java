@@ -3,10 +3,15 @@ package org.example;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.*;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
+import org.apache.spark.sql.expressions.Window;
+import org.apache.spark.sql.expressions.WindowSpec;
 import org.apache.spark.sql.streaming.StreamingQuery;
+import org.apache.spark.sql.streaming.Trigger;
+
+import java.util.Map;
 import java.util.Scanner;
 
-import static org.apache.spark.sql.functions.expr;
+import static org.apache.spark.sql.functions.*;
 
 
 public class App {
@@ -35,6 +40,7 @@ public class App {
                 .appName("App")
                 .master("local")
                 .getOrCreate();
+        spark.conf().set("spark.sql.shuffle.partitions",2);
         spark.sparkContext().setLogLevel("ERROR");
         Dataset<Row> iotA = spark
                 .readStream()
@@ -65,19 +71,29 @@ public class App {
         Dataset<Row> mapped_iotA = iotA.map((MapFunction<Row, Row>) row ->
         {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0), row.get(2), row.get(3));},
                 RowEncoder.apply(iotA.schema()));
+        mapped_iotA = mapped_iotA.selectExpr("CAST(keyA AS STRING)", "CAST(valueA AS FLOAT)",
+                "CAST(topicA AS STRING)", "CAST(timestampA AS TIMESTAMP)");
         Dataset<Row> mapped_iotB = iotB.map((MapFunction<Row, Row>) row ->
         {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0), row.get(2), row.get(3));},
                 RowEncoder.apply(iotB.schema()));
+        mapped_iotB = mapped_iotB.selectExpr("CAST(keyB AS STRING)", "CAST(valueB AS FLOAT)",
+                "CAST(topicB AS STRING)", "CAST(timestampB AS TIMESTAMP)");
 
-        //Dataset<Row> mapped_iotA_watermark = mapped_iotA.withWatermark("timestamp", "2 hours");
-        //Dataset<Row> mapped_iotB_watermark = mapped_iotB.withWatermark("timestamp", "3 hours");
+        Dataset<Row> joined_streams = mapped_iotA
+                .join(mapped_iotB, mapped_iotA.col("keyA").equalTo(mapped_iotB.col("keyB")));
 
-        Dataset<Row> joined_streams = mapped_iotA.join(mapped_iotB, expr(
-                "keyA = keyB AND " +
-                        "timestampA >= timestampB AND " +
-                        "timestampA <= timestampB + interval 20 second ")
-        );   // key is common in both DataFrames
+        joined_streams = joined_streams .map(
+                (MapFunction<Row, Row>) row ->
+                {return RowFactory.create(row.get(0), avrg((Float)row.get(1), (Float)row.get(5)), row.get(2), row.get(3), row.get(4), row.get(5), row.get(6), row.get(7));},
+                RowEncoder.apply(joined_streams.schema())
+        );
+        joined_streams = joined_streams.withWatermark("timestampA", "1 minute");
 
+        Dataset<Row> windowedAvg = joined_streams.groupBy(
+                functions.window(col("timestampA"), "15 seconds"),
+                col("keyA")
+        ).avg("valueA");
+        windowedAvg = windowedAvg.withColumnRenamed("avg(valueA)", "new_value");
         //1:2021-02-07 00:03:19,1612656199,63.3,17.1
         //1:2021-02-07 00:03:19,1612656199,63.3,17.2
         // Start running the query that prints the data getting from Kafka 'iotA' topic
@@ -85,22 +101,41 @@ public class App {
                 .outputMode("append")
                 .format("console")
                 .start();
-        mapped_iotA.writeStream()
+        StreamingQuery query1 = iotB.writeStream()
                 .outputMode("append")
                 .format("console")
                 .start();
-        mapped_iotB.writeStream()
+        StreamingQuery query2 = windowedAvg
+                .selectExpr("CAST(keyA AS STRING)", "CAST(new_value AS STRING)")
+                .writeStream()
+                .format("kafka")
+                .option("checkpointLocation", "C:\\Users\\aevi1\\Downloads")
+                .option("kafka.bootstrap.servers", IP)
+                .option("topic", "iot_output")
+                .start();
+        /*StreamingQuery query2 = mapped_iotA.writeStream()
+                .outputMode("append")
+                .format("console")
+                .start();*/
+        StreamingQuery query3 = mapped_iotB.writeStream()
                 .outputMode("append")
                 .format("console")
                 .start();
-
-        joined_streams.writeStream()
+        StreamingQuery query4 = joined_streams.writeStream()
                 .outputMode("append")
                 .format("console")
                 .start();
-
+        StreamingQuery query5 = windowedAvg.writeStream()
+                .outputMode("append")
+                .format("console")
+                .start();
         //Getting the data value as String
         query.awaitTermination();
+        query1.awaitTermination();
+        query3.awaitTermination();
+        query4.awaitTermination();
+        query5.awaitTermination();
+        query2.awaitTermination();
     }
 
     public static void twitter_topic_connection(String IP) throws Exception {
@@ -112,10 +147,13 @@ public class App {
     }
 
     //helper methods
+    public static Float avrg(Float num1, Float num2){
+        return (num1 + num2) / 2;
+    }
+
 
     //method to parse records from the different sources
     public static String splitValue(String value, Integer source){
-        System.out.println(value);
         String[] parts = new String[0];
         if(source == 0){ //iot line separator
             //asumming an input of type 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4
