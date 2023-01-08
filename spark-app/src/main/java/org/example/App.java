@@ -3,13 +3,11 @@ package org.example;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.*;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
-import org.apache.spark.sql.expressions.Window;
-import org.apache.spark.sql.expressions.WindowSpec;
-import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.Trigger;
 
-import java.util.Map;
 import java.util.Scanner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.apache.spark.sql.functions.*;
 
@@ -99,6 +97,7 @@ public class App {
         windowedAvg
         .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
         .writeStream()
+        .trigger(Trigger.ProcessingTime("1 minutes"))
         .format("kafka")
         .format("console")
         .outputMode("append")
@@ -151,12 +150,12 @@ public class App {
         Dataset<Row> mapped_twitterA = twitterA.map((MapFunction<Row, Row>) row ->
                 {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 3), row.get(2), row.get(3));},
                 RowEncoder.apply(twitterA.schema()));
-        mapped_twitterA = mapped_twitterA.selectExpr("CAST(keyA AS STRING)", "CAST(valueA AS FLOAT)",
+        mapped_twitterA = mapped_twitterA.selectExpr("CAST(keyA AS STRING)", "CAST(valueA AS STRING)",
                 "CAST(topicA AS STRING)", "CAST(timestampA AS TIMESTAMP)");
         Dataset<Row> mapped_twitterB = twitterB.map((MapFunction<Row, Row>) row ->
                 {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 3), row.get(2), row.get(3));},
                 RowEncoder.apply(twitterB.schema()));
-        mapped_twitterB = mapped_twitterB.selectExpr("CAST(keyB AS STRING)", "CAST(valueB AS FLOAT)",
+        mapped_twitterB = mapped_twitterB.selectExpr("CAST(keyB AS STRING)", "CAST(valueB AS STRING)",
                 "CAST(topicB AS STRING)", "CAST(timestampB AS TIMESTAMP)");
 
         Dataset<Row> joined_streams = mapped_twitterA
@@ -164,32 +163,30 @@ public class App {
 
         joined_streams = joined_streams .map(
                 (MapFunction<Row, Row>) row ->
-                {return RowFactory.create(row.get(0), avrg((Float)row.get(1), (Float)row.get(5)), row.get(2), row.get(3), row.get(4), row.get(5), row.get(6), row.get(7));},
+                {return RowFactory.create(row.get(0), twitter_counter((String)row.get(1) +"&-/-q&"+ (String)row.get(5)), row.get(2), row.get(3), row.get(4), row.get(5), row.get(6), row.get(7));},
                 RowEncoder.apply(joined_streams.schema())
         );
-        joined_streams = joined_streams.withWatermark("timestampA", "1 minute");
+        joined_streams = joined_streams.withWatermark("timestampA", "5 seconds");
 
         Dataset<Row> windowedAvg = joined_streams.groupBy(
                 functions.window(col("timestampA"), "15 seconds"),
                 col("keyA")
-        ).avg("valueA");
-        windowedAvg = windowedAvg.withColumnRenamed("avg(valueA)", "value");
+        ).df();
+
+        windowedAvg = windowedAvg.withColumnRenamed("valueA", "value");
         windowedAvg = windowedAvg.withColumnRenamed("keyA", "key");
 
         windowedAvg
                 .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
                 .writeStream()
+                .trigger(Trigger.ProcessingTime("1 minutes"))
                 .format("kafka")
-                .format("console")
                 .outputMode("append")
                 .option("kafka.bootstrap.servers", IP)
-                .option("topic", "iot_output")
-                .option("checkpointLocation", "C:\\Users\\aevi1\\Downloads")
+                .option("topic", "twitterOUT")
+                .option("checkpointLocation", "C:\\Users\\aevi1\\Downloads\\TWITTER_TOPIC")
                 .start();
-        joined_streams.writeStream()
-                .outputMode("append")
-                .format("console")
-                .start().awaitTermination();
+
         spark.streams().awaitAnyTermination();
     }
 
@@ -200,7 +197,7 @@ public class App {
                 .appName("App")
                 .master("local")
                 .getOrCreate();
-        spark.conf().set("spark.sql.shuffle.partitions",2);
+        spark.conf().set("spark.sql.shuffle.partitions", 2);
         spark.sparkContext().setLogLevel("ERROR");
         Dataset<Row> logA = spark
                 .readStream()
@@ -231,12 +228,12 @@ public class App {
         Dataset<Row> mapped_logA = logA.map((MapFunction<Row, Row>) row ->
                 {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 2), row.get(2), row.get(3));},
                 RowEncoder.apply(logA.schema()));
-        mapped_logA = mapped_logA.selectExpr("CAST(keyA AS STRING)", "CAST(valueA AS FLOAT)",
+        mapped_logA = mapped_logA.selectExpr("CAST(keyA AS STRING)", "CAST(valueA AS STRING)",
                 "CAST(topicA AS STRING)", "CAST(timestampA AS TIMESTAMP)");
         Dataset<Row> mapped_logB = logB.map((MapFunction<Row, Row>) row ->
                 {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 2), row.get(2), row.get(3));},
                 RowEncoder.apply(logB.schema()));
-        mapped_logB = mapped_logB.selectExpr("CAST(keyB AS STRING)", "CAST(valueB AS FLOAT)",
+        mapped_logB = mapped_logB.selectExpr("CAST(keyB AS STRING)", "CAST(valueB AS STRING)",
                 "CAST(topicB AS STRING)", "CAST(timestampB AS TIMESTAMP)");
 
         Dataset<Row> joined_streams = mapped_logA
@@ -244,32 +241,32 @@ public class App {
 
         joined_streams = joined_streams .map(
                 (MapFunction<Row, Row>) row ->
-                {return RowFactory.create(row.get(0), avrg((Float)row.get(1), (Float)row.get(5)), row.get(2), row.get(3), row.get(4), row.get(5), row.get(6), row.get(7));},
+                {return RowFactory.create(row.get(0), check_if_error((String)row.get(1) +" "+ (String)row.get(5)), row.get(2), row.get(3), row.get(4), row.get(5), row.get(6), row.get(7));},
                 RowEncoder.apply(joined_streams.schema())
         );
-        joined_streams = joined_streams.withWatermark("timestampA", "1 minute");
+        joined_streams = joined_streams.withWatermark("timestampA", "10 seconds");
 
         Dataset<Row> windowedAvg = joined_streams.groupBy(
                 functions.window(col("timestampA"), "15 seconds"),
                 col("keyA")
-        ).avg("valueA");
-        windowedAvg = windowedAvg.withColumnRenamed("avg(valueA)", "value");
+        ).df();
+        windowedAvg = windowedAvg.withColumnRenamed("valueA", "value");
         windowedAvg = windowedAvg.withColumnRenamed("keyA", "key");
 
         windowedAvg
                 .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
                 .writeStream()
+                .trigger(Trigger.ProcessingTime("1 minutes"))
                 .format("kafka")
-                .format("console")
                 .outputMode("append")
                 .option("kafka.bootstrap.servers", IP)
-                .option("topic", "iot_output")
-                .option("checkpointLocation", "C:\\Users\\aevi1\\Downloads")
+                .option("topic", "logOUT")
+                .option("checkpointLocation", "C:\\Users\\aevi1\\Downloads\\LOG_TOPIC")
                 .start();
-        joined_streams.writeStream()
-                .outputMode("append")
-                .format("console")
-                .start().awaitTermination();
+        //joined_streams.writeStream()
+        //        .outputMode("append")
+        //        .format("console")
+        //        .start().awaitTermination();
         spark.streams().awaitAnyTermination();
     }
 
@@ -278,7 +275,20 @@ public class App {
         return (num1 + num2) / 2;
     }
 
-
+    //checks if the value is a 400-499 request code
+    // and return the count of them
+    public static int ERROR_NUMBER = 0;
+    public static String check_if_error(String value){
+        //System.out.println("en check if error: "+value);
+        String[] numbers = value.split(" ");
+        if (Integer.parseInt(numbers[0]) >= 400 && Integer.parseInt(numbers[0]) < 500){
+            ERROR_NUMBER += 1;
+        }
+        if (Integer.parseInt(numbers[1]) >= 400 && Integer.parseInt(numbers[1]) < 500){
+            ERROR_NUMBER += 1;
+        }
+        return String.valueOf(ERROR_NUMBER);
+    }
     //method to parse records from the different sources
     public static String splitValue(String value, Integer source){
         String[] parts = new String[0];
@@ -290,10 +300,39 @@ public class App {
             //[22/Jan/2019:03:56:16 +0330] "GET /image/60844/productModel/200x200 HTTP/1.1" 402 5667 "https://www.zanbil.ir/m/filter/b113" "Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36" "-
             parts = value.split("(1.1\" )|(1.0\" )|(\" (?=\\d{3}))");
             parts = parts[1].split(" ");
-            //System.out.println(Arrays.toString(parts));
+            //System.out.println(parts[0]);
             return parts[0];
         }else{ //twitter line separator
+            //System.out.println(value.substring(0, 5));
             return value.substring(0, 5);
         }
+    }
+
+    //counts and store in constant variables the type of tweet received
+    public static int NORMAL_TWEETS = 0;
+    public static int RE_TWEETS = 0;
+    public static int RESPONSES = 0;
+    public static String twitter_counter(String tweets){
+        if(!tweets.contains("null")){
+            String[] parts = tweets.split("&-/-q&");
+            Pattern rt_pattern = Pattern.compile("^RT");
+            Pattern response_pattern = Pattern.compile("^@");
+            String tweet;
+            for (int i = 0; i < parts.length; i++){
+                tweet = parts[i];
+                rt_pattern = Pattern.compile("^RT");
+                response_pattern = Pattern.compile("^@");
+                Matcher rt_matcher = rt_pattern.matcher(tweet);
+                Matcher response_matcher = response_pattern.matcher(tweet);
+                if(rt_matcher.find()){
+                    RE_TWEETS += 1;
+                } else if (response_matcher.find()) {
+                    RESPONSES += 1;
+                }else{
+                    NORMAL_TWEETS += 1;
+                }
+            }
+        }
+        return NORMAL_TWEETS +" "+ RE_TWEETS +" "+ RESPONSES;
     }
 }

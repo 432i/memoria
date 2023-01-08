@@ -53,7 +53,7 @@ public class App
         KStream<String, String> iotA = builder.stream("iotA",
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
                 .mapValues(value -> splitValue(value, 0))
-                .peek((key, value) -> System.out.println("iotA key: " + key + " , value: " + value));;
+                .peek((key, value) -> System.out.println("iotA key: " + key + " , value: " + value));
 
         KStream<String, String> iotB = builder.stream("iotB",
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
@@ -240,8 +240,6 @@ public class App
                 }
             }
         }
-
-
         return NORMAL_TWEETS +" "+ RE_TWEETS +" "+ RESPONSES;
     }
 }
