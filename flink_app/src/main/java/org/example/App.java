@@ -3,14 +3,19 @@ package org.example;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.JoinFunction;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.connector.base.DeliveryGuarantee;
+import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
+import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.connector.kafka.source.reader.deserializer.KafkaRecordDeserializationSchema;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.connectors.kafka.KafkaDeserializationSchema;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -107,11 +112,9 @@ public class App
                 .build();
 
         DataStream<KafkaEvent> iotA_datastream = env.fromSource(iotA,
-                WatermarkStrategy.<KafkaEvent>forBoundedOutOfOrderness(Duration.ofSeconds(20))
-                        .withTimestampAssigner((event, timestamp) -> event.timestamp), "Kafka Source");
+                WatermarkStrategy.noWatermarks(), "Kafka Source");
         DataStream<KafkaEvent> iotB_datastream = env.fromSource(iotB,
-                WatermarkStrategy.<KafkaEvent>forBoundedOutOfOrderness(Duration.ofSeconds(20))
-                        .withTimestampAssigner((event, timestamp) -> event.timestamp), "Kafka Source");
+                WatermarkStrategy.noWatermarks(), "Kafka Source");
 
         DataStream<KafkaEvent> mapped_iotA = iotA_datastream
                 .map((MapFunction<KafkaEvent, KafkaEvent>) record -> {
@@ -128,31 +131,46 @@ public class App
                 })
                 .keyBy(record -> record.key);
 
-        DataStream<String> joined_streams = mapped_iotA.join(mapped_iotB)
+        DataStream<String> joined_streams = mapped_iotA
+                .join(mapped_iotB)
                 .where(new KeySelector<KafkaEvent, String>() {
                     @Override
                     public String getKey(KafkaEvent record) throws Exception {
-                        System.out.println("getkey1"+record.key+record.value);
-                        return record.key;
+                        //System.out.println("key,value1 : "+record.key+" "+record.value);
+                        return (String)  record.key;
                     }
                 })
                 .equalTo(new KeySelector<KafkaEvent, String>() {
                     @Override
                     public String getKey(KafkaEvent record) throws Exception {
-                        System.out.println("getkey2"+ record.key+record.value);
-                        return record.key;
+                        //System.out.println("key,value2 : "+ record.key+" "+record.value);
+                        return (String) record.key;
                     }
                 })
-                .window(TumblingEventTimeWindows.of(Time.seconds(10)))
+                .window(TumblingProcessingTimeWindows.of(Time.seconds(10)))
                 .apply(new JoinFunction<KafkaEvent, KafkaEvent, String> (){
                     @Override
                     public String join(KafkaEvent record1, KafkaEvent record2) throws Exception {
-                        System.out.println(" EN JOIN value1" + record1.value + "value2" + record2.value);
-                        return "null";
+                        Float sum = Float.valueOf(record1.value) + Float.valueOf(record2.value);
+                        return String.valueOf(sum/2);
                     }
                 });
         joined_streams.print();
-        //mapped_iotA.map((MapFunction<ConsumerRecord, String>) record -> "final_timestamp: "+record.timestamp()).print();
+        //write into kafka
+        DataStream<String> stream = ...;
+
+        KafkaSink<String> sink = KafkaSink.<String>builder()
+                .setBootstrapServers(brokers)
+                .setRecordSerializer(KafkaRecordSerializationSchema.builder()
+                        .setTopic("topic-name")
+                        .setValueSerializationSchema(new SimpleStringSchema())
+                        .build()
+                )
+                .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+                .build();
+
+        stream.sinkTo(sink);
+
         env.execute();
     }
     public static void twitter_topic_connection(String IP) throws Exception{
