@@ -14,14 +14,12 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.connector.kafka.source.reader.deserializer.KafkaRecordDeserializationSchema;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.connectors.kafka.KafkaDeserializationSchema;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -151,221 +149,280 @@ public class App
                 .apply(new JoinFunction<KafkaEvent, KafkaEvent, String> (){
                     @Override
                     public String join(KafkaEvent record1, KafkaEvent record2) throws Exception {
-                        Float sum = Float.valueOf(record1.value) + Float.valueOf(record2.value);
+                        Float sum = Float.parseFloat(record1.value) + Float.parseFloat(record2.value);
                         return String.valueOf(sum/2);
                     }
                 });
-        joined_streams.print();
+        //joined_streams.print();
         //write into kafka
-        DataStream<String> stream = ...;
 
         KafkaSink<String> sink = KafkaSink.<String>builder()
-                .setBootstrapServers(brokers)
+                .setBootstrapServers(IP)
                 .setRecordSerializer(KafkaRecordSerializationSchema.builder()
-                        .setTopic("topic-name")
-                        .setValueSerializationSchema(new SimpleStringSchema())
-                        .build()
+                .setTopic("iotOUT")
+                .setValueSerializationSchema(new SimpleStringSchema())
+                .build()
                 )
-                .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+                .setDeliverGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
                 .build();
 
-        stream.sinkTo(sink);
+        joined_streams.sinkTo(sink);
 
         env.execute();
     }
     public static void twitter_topic_connection(String IP) throws Exception{
         System.out.println( "Initiating connection with Twitter topic" );
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
 
-        KafkaSource<ConsumerRecord> twitterA = KafkaSource.<ConsumerRecord>builder()
+        KafkaSource<KafkaEvent> twitterA = KafkaSource.<KafkaEvent>builder()
                 .setBootstrapServers(IP)
                 .setTopics("twitterA")
-                .setStartingOffsets(OffsetsInitializer.earliest())
-                .setDeserializer(KafkaRecordDeserializationSchema.of(new KafkaDeserializationSchema<ConsumerRecord>() {
+                .setStartingOffsets(OffsetsInitializer.latest())
+                .setDeserializer(KafkaRecordDeserializationSchema.of(new KafkaDeserializationSchema<KafkaEvent>() {
                     @Override
-                    public boolean isEndOfStream(ConsumerRecord record) {
+                    public boolean isEndOfStream(KafkaEvent record) {
                         return false;
                     }
-
                     @Override
-                    public ConsumerRecord deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
+                    public KafkaEvent deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
                         String key = new String(record.key(), StandardCharsets.UTF_8);
                         String value = new String(record.value(), StandardCharsets.UTF_8);
-                        return new ConsumerRecord(
+                        //System.out.println(record.timestamp());
+                        return new KafkaEvent(
+                                key,
+                                value,
                                 record.topic(),
                                 record.partition(),
                                 record.offset(),
-                                record.timestamp(),
-                                record.timestampType(),
-                                record.checksum(),
-                                record.serializedKeySize(),
-                                record.serializedValueSize(),
-                                key,
-                                value
+                                record.timestamp()
                         );
                     }
-
                     @Override
-                    public TypeInformation<ConsumerRecord> getProducedType() {
-                        TypeInformation<ConsumerRecord> typeInfo = TypeInformation.of(ConsumerRecord.class);
+                    public TypeInformation<KafkaEvent> getProducedType() {
+                        TypeInformation<KafkaEvent> typeInfo = TypeInformation.of(KafkaEvent.class);
                         return typeInfo;
                     }
                 }))
                 .build();
-        KafkaSource<ConsumerRecord> twitterB = KafkaSource.<ConsumerRecord>builder()
+        KafkaSource<KafkaEvent> twitterB = KafkaSource.<KafkaEvent>builder()
                 .setBootstrapServers(IP)
                 .setTopics("twitterB")
-                .setStartingOffsets(OffsetsInitializer.earliest())
-                .setDeserializer(KafkaRecordDeserializationSchema.of(new KafkaDeserializationSchema<ConsumerRecord>() {
+                .setStartingOffsets(OffsetsInitializer.latest())
+                .setDeserializer(KafkaRecordDeserializationSchema.of(new KafkaDeserializationSchema<KafkaEvent>() {
                     @Override
-                    public boolean isEndOfStream(ConsumerRecord record) {
+                    public boolean isEndOfStream(KafkaEvent record) {
                         return false;
                     }
 
                     @Override
-                    public ConsumerRecord deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
+                    public KafkaEvent deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
                         String key = new String(record.key(), StandardCharsets.UTF_8);
                         String value = new String(record.value(), StandardCharsets.UTF_8);
-                        return new ConsumerRecord(
+                        return new KafkaEvent(
+                                key,
+                                value,
                                 record.topic(),
                                 record.partition(),
                                 record.offset(),
-                                record.timestamp(),
-                                record.timestampType(),
-                                record.checksum(),
-                                record.serializedKeySize(),
-                                record.serializedValueSize(),
-                                key,
-                                value
+                                record.timestamp()
                         );
                     }
 
                     @Override
-                    public TypeInformation<ConsumerRecord> getProducedType() {
-                        TypeInformation<ConsumerRecord> typeInfo = TypeInformation.of(ConsumerRecord.class);
+                    public TypeInformation<KafkaEvent> getProducedType() {
+                        TypeInformation<KafkaEvent> typeInfo = TypeInformation.of(KafkaEvent.class);
                         return typeInfo;
                     }
                 }))
                 .build();
 
-        DataStream<ConsumerRecord> twitterA_datastream = env.fromSource(twitterA, WatermarkStrategy.forMonotonousTimestamps(), "Kafka Source");
-        DataStream<ConsumerRecord> twitterB_datastream = env.fromSource(twitterB, WatermarkStrategy.forMonotonousTimestamps(), "Kafka Source");
+        DataStream<KafkaEvent> twitterA_datastream = env.fromSource(twitterA,
+                WatermarkStrategy.noWatermarks(), "Kafka Source");
+        DataStream<KafkaEvent> twitterB_datastream = env.fromSource(twitterB,
+                WatermarkStrategy.noWatermarks(), "Kafka Source");
 
-        twitterA_datastream.map(new MapFunction<ConsumerRecord, ConsumerRecord>() {
-            @Override
-            public ConsumerRecord map(ConsumerRecord record) throws Exception {
-                String new_value = splitValue((String) record.value(), 3);
-                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.timestamp(), record.timestampType(),
-                        record.checksum(), record.serializedKeySize(), record.serializedValueSize(), record.key(), new_value);
-            }
-        }).map((MapFunction<ConsumerRecord, String>) record -> "Value from kafka: " + record.value() + "  Key from kafka " + record.key()).print();
+        DataStream<KafkaEvent> mapped_twitterA = twitterA_datastream
+                .map((MapFunction<KafkaEvent, KafkaEvent>) record -> {
+                    String new_value = splitValue(record.value, 3);
+                    return new KafkaEvent(record.key, new_value, record.topic, record.partition,
+                            record.offset, record.timestamp);
+                })
+                .keyBy(record -> record.key);
+        DataStream<KafkaEvent> mapped_twitterB = twitterB_datastream
+                .map((MapFunction<KafkaEvent, KafkaEvent>) record -> {
+                    String new_value = splitValue(record.value, 3);
+                    return new KafkaEvent(record.key, new_value, record.topic, record.partition,
+                            record.offset, record.timestamp);
+                })
+                .keyBy(record -> record.key);
 
-        twitterB_datastream.map(new MapFunction<ConsumerRecord, ConsumerRecord>() {
-            @Override
-            public ConsumerRecord map(ConsumerRecord record) throws Exception {
-                String new_value = splitValue((String) record.value(), 3);
-                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.timestamp(), record.timestampType(),
-                        record.checksum(), record.serializedKeySize(), record.serializedValueSize(), record.key(), new_value);
-            }
-        }).map((MapFunction<ConsumerRecord, String>) record -> "Value from kafka: " + record.value() + "  Key from kafka " + record.key()).print();
+        DataStream<String> joined_streams = mapped_twitterA
+                .join(mapped_twitterB)
+                .where(new KeySelector<KafkaEvent, String>() {
+                    @Override
+                    public String getKey(KafkaEvent record) throws Exception {
+                        //System.out.println("key,value1 : "+record.key+" "+record.value);
+                        return (String)  record.key;
+                    }
+                })
+                .equalTo(new KeySelector<KafkaEvent, String>() {
+                    @Override
+                    public String getKey(KafkaEvent record) throws Exception {
+                        //System.out.println("key,value2 : "+ record.key+" "+record.value);
+                        return (String) record.key;
+                    }
+                })
+                .window(TumblingProcessingTimeWindows.of(Time.seconds(10)))
+                .apply(new JoinFunction<KafkaEvent, KafkaEvent, String> (){
+                    @Override
+                    public String join(KafkaEvent record1, KafkaEvent record2) throws Exception {
+                        String twitter_counter = record1.value +"&-/-q&"+ record2.value;
+                        twitter_counter = twitter_counter(twitter_counter);
+                        return twitter_counter;
+                    }
+                });
+        //joined_streams.print();
+        //write into kafka
+
+        KafkaSink<String> sink = KafkaSink.<String>builder()
+                .setBootstrapServers(IP)
+                .setRecordSerializer(KafkaRecordSerializationSchema.builder()
+                        .setTopic("twitterOUT")
+                        .setValueSerializationSchema(new SimpleStringSchema())
+                        .build()
+                )
+                .setDeliverGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+                .build();
+
+        joined_streams.sinkTo(sink);
 
         env.execute();
     }
     public static void log_topic_connection(String IP) throws Exception{
         System.out.println( "Initiating connection with Log topic" );
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
 
-        KafkaSource<ConsumerRecord> logA = KafkaSource.<ConsumerRecord>builder()
+        KafkaSource<KafkaEvent> logA = KafkaSource.<KafkaEvent>builder()
                 .setBootstrapServers(IP)
                 .setTopics("logA")
-                .setStartingOffsets(OffsetsInitializer.earliest())
-                .setDeserializer(KafkaRecordDeserializationSchema.of(new KafkaDeserializationSchema<ConsumerRecord>() {
+                .setStartingOffsets(OffsetsInitializer.latest())
+                .setDeserializer(KafkaRecordDeserializationSchema.of(new KafkaDeserializationSchema<KafkaEvent>() {
                     @Override
-                    public boolean isEndOfStream(ConsumerRecord record) {
+                    public boolean isEndOfStream(KafkaEvent record) {
                         return false;
                     }
-
                     @Override
-                    public ConsumerRecord deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
+                    public KafkaEvent deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
                         String key = new String(record.key(), StandardCharsets.UTF_8);
                         String value = new String(record.value(), StandardCharsets.UTF_8);
-                        return new ConsumerRecord(
+                        //System.out.println(record.timestamp());
+                        return new KafkaEvent(
+                                key,
+                                value,
                                 record.topic(),
                                 record.partition(),
                                 record.offset(),
-                                record.timestamp(),
-                                record.timestampType(),
-                                record.checksum(),
-                                record.serializedKeySize(),
-                                record.serializedValueSize(),
-                                key,
-                                value
+                                record.timestamp()
                         );
                     }
-
                     @Override
-                    public TypeInformation<ConsumerRecord> getProducedType() {
-                        TypeInformation<ConsumerRecord> typeInfo = TypeInformation.of(ConsumerRecord.class);
+                    public TypeInformation<KafkaEvent> getProducedType() {
+                        TypeInformation<KafkaEvent> typeInfo = TypeInformation.of(KafkaEvent.class);
                         return typeInfo;
                     }
                 }))
                 .build();
-        KafkaSource<ConsumerRecord> logB = KafkaSource.<ConsumerRecord>builder()
+        KafkaSource<KafkaEvent> logB = KafkaSource.<KafkaEvent>builder()
                 .setBootstrapServers(IP)
                 .setTopics("logB")
-                .setStartingOffsets(OffsetsInitializer.earliest())
-                .setDeserializer(KafkaRecordDeserializationSchema.of(new KafkaDeserializationSchema<ConsumerRecord>() {
+                .setStartingOffsets(OffsetsInitializer.latest())
+                .setDeserializer(KafkaRecordDeserializationSchema.of(new KafkaDeserializationSchema<KafkaEvent>() {
                     @Override
-                    public boolean isEndOfStream(ConsumerRecord record) {
+                    public boolean isEndOfStream(KafkaEvent record) {
                         return false;
                     }
 
                     @Override
-                    public ConsumerRecord deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
+                    public KafkaEvent deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
                         String key = new String(record.key(), StandardCharsets.UTF_8);
                         String value = new String(record.value(), StandardCharsets.UTF_8);
-                        return new ConsumerRecord(
+                        return new KafkaEvent(
+                                key,
+                                value,
                                 record.topic(),
                                 record.partition(),
                                 record.offset(),
-                                record.timestamp(),
-                                record.timestampType(),
-                                record.checksum(),
-                                record.serializedKeySize(),
-                                record.serializedValueSize(),
-                                key,
-                                value
+                                record.timestamp()
                         );
                     }
 
                     @Override
-                    public TypeInformation<ConsumerRecord> getProducedType() {
-                        TypeInformation<ConsumerRecord> typeInfo = TypeInformation.of(ConsumerRecord.class);
+                    public TypeInformation<KafkaEvent> getProducedType() {
+                        TypeInformation<KafkaEvent> typeInfo = TypeInformation.of(KafkaEvent.class);
                         return typeInfo;
                     }
                 }))
                 .build();
 
-        DataStream<ConsumerRecord> logA_datastream = env.fromSource(logA, WatermarkStrategy.forMonotonousTimestamps(), "Kafka Source");
-        DataStream<ConsumerRecord> logB_datastream = env.fromSource(logB, WatermarkStrategy.forMonotonousTimestamps(), "Kafka Source");
+        DataStream<KafkaEvent> logA_datastream = env.fromSource(logA,
+                WatermarkStrategy.noWatermarks(), "Kafka Source");
+        DataStream<KafkaEvent> logB_datastream = env.fromSource(logB,
+                WatermarkStrategy.noWatermarks(), "Kafka Source");
 
-        logA_datastream.map(new MapFunction<ConsumerRecord, ConsumerRecord>() {
-            @Override
-            public ConsumerRecord map(ConsumerRecord record) throws Exception {
-                String new_value = splitValue((String) record.value(), 2);
-                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.timestamp(), record.timestampType(),
-                        record.checksum(), record.serializedKeySize(), record.serializedValueSize(), record.key(), new_value);
-            }
-        }).map((MapFunction<ConsumerRecord, String>) record -> "Value from kafka: " + record.value() + "  Key from kafka " + record.key()).print();
+        DataStream<KafkaEvent> mapped_logA = logA_datastream
+                .map((MapFunction<KafkaEvent, KafkaEvent>) record -> {
+                    String new_value = splitValue(record.value, 2);
+                    return new KafkaEvent(record.key, new_value, record.topic, record.partition,
+                            record.offset, record.timestamp);
+                })
+                .keyBy(record -> record.key);
+        DataStream<KafkaEvent> mapped_logB = logB_datastream
+                .map((MapFunction<KafkaEvent, KafkaEvent>) record -> {
+                    String new_value = splitValue(record.value, 2);
+                    return new KafkaEvent(record.key, new_value, record.topic, record.partition,
+                            record.offset, record.timestamp);
+                })
+                .keyBy(record -> record.key);
 
-        logB_datastream.map(new MapFunction<ConsumerRecord, ConsumerRecord>() {
-            @Override
-            public ConsumerRecord map(ConsumerRecord record) throws Exception {
-                String new_value = splitValue((String) record.value(), 2);
-                return new ConsumerRecord(record.topic(), record.partition(), record.offset(), record.timestamp(), record.timestampType(),
-                        record.checksum(), record.serializedKeySize(), record.serializedValueSize(), record.key(), new_value);
-            }
-        }).map((MapFunction<ConsumerRecord, String>) record -> "Value from kafka: " + record.value() + "  Key from kafka " + record.key()).print();
+        DataStream<String> joined_streams = mapped_logA
+                .join(mapped_logB)
+                .where(new KeySelector<KafkaEvent, String>() {
+                    @Override
+                    public String getKey(KafkaEvent record) throws Exception {
+                        //System.out.println("key,value1 : "+record.key+" "+record.value);
+                        return (String)  record.key;
+                    }
+                })
+                .equalTo(new KeySelector<KafkaEvent, String>() {
+                    @Override
+                    public String getKey(KafkaEvent record) throws Exception {
+                        //System.out.println("key,value2 : "+ record.key+" "+record.value);
+                        return (String) record.key;
+                    }
+                })
+                .window(TumblingProcessingTimeWindows.of(Time.seconds(10)))
+                .apply(new JoinFunction<KafkaEvent, KafkaEvent, String> (){
+                    @Override
+                    public String join(KafkaEvent record1, KafkaEvent record2) throws Exception {
+                        String log_strs = record1.value +" "+ record2.value;
+                        Integer errors = check_if_error(log_strs);
+                        return Integer.toString(errors);
+                    }
+                });
+        //joined_streams.print();
+        //write into kafka
+
+        KafkaSink<String> sink = KafkaSink.<String>builder()
+                .setBootstrapServers(IP)
+                .setRecordSerializer(KafkaRecordSerializationSchema.builder()
+                        .setTopic("logOUT")
+                        .setValueSerializationSchema(new SimpleStringSchema())
+                        .build()
+                )
+                .setDeliverGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+                .build();
+
+        joined_streams.sinkTo(sink);
 
         env.execute();
     }
@@ -390,8 +447,8 @@ public class App
     }
     //checks if the value is a 400-499 request code
     // and return the count of them
+    public static int errors_number = 0;
     public static Integer check_if_error(String value){
-        int errors_number = 0;
         String[] numbers = value.split(" ");
         if (Integer.parseInt(numbers[0]) >= 400 && Integer.parseInt(numbers[0]) < 500){
             errors_number += 1;
@@ -401,11 +458,7 @@ public class App
         }
         return errors_number;
     }
-    //mantains the total string in a fixed size
-    public static String cut_string(String total){
-        total = "";
-        return total;
-    }
+
     //counts and store in constant variables the type of tweet received
     public static int NORMAL_TWEETS = 0;
     public static int RE_TWEETS = 0;
