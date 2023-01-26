@@ -8,9 +8,10 @@ import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.*;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Properties;
 import java.util.Scanner;
 import java.util.regex.Matcher;
@@ -26,7 +27,9 @@ public class App
         System.out.println( "Iniciando consumidor de kafka streams" );
         Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "streams-test");
-        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "34.176.127.40:9092");
+        String ip = get_IP();
+        System.out.println("encontre la ip: "+ ip);
+        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, ip);
         Scanner scanner = new Scanner(System.in);
         System.out.println("Elige el dataset:");
         System.out.println("1.- Twitter");
@@ -43,6 +46,22 @@ public class App
 
     }
 
+    public static String get_IP(){
+        String ip_address = "";
+        try {
+            File myObj = new File("/home/ubuntu/ip_folder/params.txt");
+            Scanner myReader = new Scanner(myObj);
+            while (myReader.hasNextLine()) {
+                ip_address = myReader.nextLine();
+            }
+            myReader.close();
+        } catch (FileNotFoundException e) {
+            System.out.println("An error occurred.");
+            e.printStackTrace();
+        }
+        return ip_address;
+    }
+
     public static void iot_topic_connection(Properties props) throws IOException {
         System.out.println( "Initiating connection with iot topic" );
         final StreamsBuilder builder = new StreamsBuilder();
@@ -52,13 +71,11 @@ public class App
 
         KStream<String, String> iotA = builder.stream("iotA",
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 0))
-                .peek((key, value) -> System.out.println("iotA key: " + key + " , value: " + value));
+                .mapValues(value -> splitValue(value, 0));
 
         KStream<String, String> iotB = builder.stream("iotB",
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 0))
-                .peek((key, value) -> System.out.println("iotB key: " + key + " , value: " + value));
+                .mapValues(value -> splitValue(value, 0));
 
         System.out.println("Initiating join operation");
         ValueJoiner<String, String, Float> valueJoiner = (leftValue, rightValue) -> Float.parseFloat(leftValue) + Float.parseFloat(rightValue);
@@ -68,9 +85,8 @@ public class App
                         iotB,
                         valueJoiner,
                         JoinWindows.of(Duration.ofMinutes(10)),
-                        StreamJoined.with(Serdes.String(), stringSerde, stringSerde))
-                        .peek((key, value) -> System.out.println("Stream-Stream Join: record key " + key + ", value: " + value)
-                );
+                        StreamJoined.with(Serdes.String(), stringSerde, stringSerde));
+
 
         System.out.println("Initiating tumbling window operation");
         combinedStream.groupByKey()
@@ -82,7 +98,7 @@ public class App
                 .toStream()
                 .map((wk, value) -> KeyValue.pair(wk.key(), value))
                 .peek((key, value) -> System.out.println("FINAL WINDOW - key " +key +", average temperature in celsius: " + value))
-                .to("iotResults", Produced.with(Serdes.String(), Serdes.Float()));
+                .to("iotOut", Produced.with(Serdes.String(), Serdes.Float()));
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();

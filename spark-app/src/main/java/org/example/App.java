@@ -5,6 +5,8 @@ import org.apache.spark.sql.*;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.streaming.Trigger;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -15,7 +17,7 @@ import static org.apache.spark.sql.functions.*;
 public class App {
     public static void main(String[] args) throws Exception {
         System.out.println("Iniciando consumidor de apache spark");
-        String ip = "34.176.50.58:9092";
+        String ip = get_IP();
         Scanner scanner = new Scanner(System.in);
         System.out.println("Elige el dataset:");
         System.out.println("1.- Twitter");
@@ -29,6 +31,22 @@ public class App {
         } else {
             iot_topic_connection(ip);
         }
+    }
+
+    public static String get_IP(){
+        String ip_address = "";
+        try {
+            File myObj = new File("/home/ubuntu/ip_folder/params.txt");
+            Scanner myReader = new Scanner(myObj);
+            while (myReader.hasNextLine()) {
+                ip_address = myReader.nextLine();
+            }
+            myReader.close();
+        } catch (FileNotFoundException e) {
+            System.out.println("An error occurred.");
+            e.printStackTrace();
+        }
+        return ip_address;
     }
 
     public static void iot_topic_connection(String IP) throws Exception {
@@ -102,8 +120,8 @@ public class App {
         .format("console")
         .outputMode("append")
         .option("kafka.bootstrap.servers", IP)
-        .option("topic", "iot_output")
-        .option("checkpointLocation", "C:\\Users\\aevi1\\Downloads")
+        .option("topic", "iotOUT")
+        .option("checkpointLocation", "/home/ubuntu/iot_spark")
         .start();
         //joined_streams.writeStream()
         //        .outputMode("append")
@@ -184,7 +202,7 @@ public class App {
                 .outputMode("append")
                 .option("kafka.bootstrap.servers", IP)
                 .option("topic", "twitterOUT")
-                .option("checkpointLocation", "C:\\Users\\aevi1\\Downloads\\TWITTER_TOPIC")
+                .option("checkpointLocation", "/home/ubuntu/twitter_spark")
                 .start();
 
         spark.streams().awaitAnyTermination();
@@ -261,7 +279,7 @@ public class App {
                 .outputMode("append")
                 .option("kafka.bootstrap.servers", IP)
                 .option("topic", "logOUT")
-                .option("checkpointLocation", "C:\\Users\\aevi1\\Downloads\\LOG_TOPIC")
+                .option("checkpointLocation", "/home/ubuntu/log_spark")
                 .start();
         //joined_streams.writeStream()
         //        .outputMode("append")

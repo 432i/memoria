@@ -19,6 +19,8 @@ import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.connectors.kafka.KafkaDeserializationSchema;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 import java.util.regex.Matcher;
@@ -28,7 +30,7 @@ public class App
 {
     public static void main( String[] args ) throws Exception {
         System.out.println( "Iniciando consumidor de flink" );
-        String ip = "34.176.50.58:9092";
+        String ip = get_IP();
         Scanner scanner = new Scanner(System.in);
         System.out.println("Elige el dataset:");
         System.out.println("1.- Twitter");
@@ -42,6 +44,22 @@ public class App
         }else {
             iot_topic_connection( ip);
         }
+    }
+
+    public static String get_IP(){
+        String ip_address = "";
+        try {
+            File myObj = new File("/home/ubuntu/ip_folder/params.txt");
+            Scanner myReader = new Scanner(myObj);
+            while (myReader.hasNextLine()) {
+                ip_address = myReader.nextLine();
+            }
+            myReader.close();
+        } catch (FileNotFoundException e) {
+            System.out.println("An error occurred.");
+            e.printStackTrace();
+        }
+        return ip_address;
     }
     public static void iot_topic_connection( String IP) throws Exception {
         System.out.println( "Initiating connection with iot topic" );

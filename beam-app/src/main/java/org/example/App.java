@@ -14,6 +14,8 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.joda.time.Duration;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.Iterator;
 import java.util.Scanner;
 import java.util.regex.Matcher;
@@ -23,7 +25,7 @@ public class App
 {
     public static void main( String[] args ) {
         System.out.println( "conecting to kafka from apache-beam" );
-        String machine_ip = "34.176.255.191:9092";
+        String ip = get_IP();
         Scanner scanner = new Scanner(System.in);
         System.out.println("Elige el dataset:");
         System.out.println("1.- Twitter");
@@ -31,13 +33,28 @@ public class App
         System.out.println("3.- IoT");
         int dataset = scanner.nextInt();
         if (dataset == 1){
-            twitter_topic_connection(machine_ip);
+            twitter_topic_connection(ip);
         } else if (dataset == 2) {
-            log_topic_connection(machine_ip);
+            log_topic_connection(ip);
         }else {
-            iot_topic_connection(machine_ip);
+            iot_topic_connection(ip);
         }
 
+    }
+    public static String get_IP(){
+        String ip_address = "";
+        try {
+            File myObj = new File("/home/ubuntu/ip_folder/params.txt");
+            Scanner myReader = new Scanner(myObj);
+            while (myReader.hasNextLine()) {
+                ip_address = myReader.nextLine();
+            }
+            myReader.close();
+        } catch (FileNotFoundException e) {
+            System.out.println("An error occurred.");
+            e.printStackTrace();
+        }
+        return ip_address;
     }
     public static void iot_topic_connection(String IP) {
         System.out.println( "Initiating connection with iot topic" );
@@ -122,8 +139,7 @@ public class App
                                             System.out.println("Unable to join event1 and event2");
                                         }else{
                                             avg_temp = avg_temp/array_lenght;
-                                            System.out.println("El promedio de "+ key+ " es "+ avg_temp);
-                                            c.output("holaaa");
+                                            c.output(String.valueOf(avg_temp));
                                         }
 
                                     }
@@ -131,7 +147,7 @@ public class App
         //write to kafka topic
         final_data.apply(KafkaIO.<Void, String>write()
                 .withBootstrapServers(IP)
-                .withTopic("iot_output")
+                .withTopic("iotOUT")
                 .withValueSerializer( StringSerializer.class).values());
         //Here we are starting the pipeline
         pipeline.run();
@@ -203,7 +219,6 @@ public class App
                                             System.out.println("Unable to join event1 and event2");
                                         }else{
                                             String result = twitter_counter(total_concat);
-                                            System.out.println(result);
                                             c.output(result);
                                         }
                                     }
@@ -211,7 +226,7 @@ public class App
         //write to kafka topic
         final_data.apply(KafkaIO.<Void, String>write()
                 .withBootstrapServers(IP)
-                .withTopic("twitter_output")
+                .withTopic("twitterOUT")
                 .withValueSerializer( StringSerializer.class).values());
         //Here we are starting the pipeline
         pipeline.run();
@@ -284,15 +299,14 @@ public class App
                                         if(total_errors == 0) {
                                             System.out.println("there is no errors or something happened");
                                         }else{
-                                            System.out.println("para el id "+ key+ " hay esta cantidad de errores:"+total_errors);
-                                            c.output("");
+                                            c.output(String.valueOf(total_errors));
                                         }
                                     }
                                 }));
         //write to kafka topic
         final_data.apply(KafkaIO.<Void, String>write()
         .withBootstrapServers(IP)
-        .withTopic("iot_output")
+        .withTopic("iotOUT")
                 .withValueSerializer( StringSerializer.class).values());
         //Here we are starting the pipeline
         pipeline.run();
