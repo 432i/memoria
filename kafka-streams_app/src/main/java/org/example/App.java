@@ -1,5 +1,7 @@
 package org.example;
 
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
@@ -30,6 +32,13 @@ public class App
         String ip = get_IP();
         System.out.println("encontre la ip: "+ ip);
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, ip);
+        // configuration to improve latency.
+        props.put(StreamsConfig.producerPrefix(ProducerConfig.BATCH_SIZE_CONFIG), 200000); //disable for all measurements except latency
+        props.put(StreamsConfig.producerPrefix(ProducerConfig.LINGER_MS_CONFIG), 0); //disable buffering (storing data temporarily). disable this config for throughtput metric
+       //
+        props.put(StreamsConfig.NUM_STREAM_THREADS_CONFIG, 4);
+        props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000);
+        props.put(StreamsConfig.WINDOW_STORE_CHANGE_LOG_ADDITIONAL_RETENTION_MS_CONFIG, 30000);
         Scanner scanner = new Scanner(System.in);
         System.out.println("Elige el dataset:");
         System.out.println("1.- Twitter");
@@ -77,28 +86,24 @@ public class App
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
                 .mapValues(value -> splitValue(value, 0));
 
-        System.out.println("Initiating join operation");
         ValueJoiner<String, String, Float> valueJoiner = (leftValue, rightValue) -> Float.parseFloat(leftValue) + Float.parseFloat(rightValue);
 
         KStream<String, Float> combinedStream =
                 iotA.join(
                         iotB,
                         valueJoiner,
-                        JoinWindows.of(Duration.ofMinutes(10)),
+                        JoinWindows.of(Duration.ofSeconds(10)),
                         StreamJoined.with(Serdes.String(), stringSerde, stringSerde));
 
-
-        System.out.println("Initiating tumbling window operation");
         combinedStream.groupByKey()
-                .windowedBy(TimeWindows.of(Duration.ofSeconds(40)))
+                .windowedBy(TimeWindows.of(Duration.ofSeconds(5)))
                 .aggregate(() -> 0.0f,
                         (key, value, total) -> total/2 + value/2,
                         Materialized.with(Serdes.String(), Serdes.Float()))
                         //.suppress(untilWindowCloses(unbounded()))
                 .toStream()
-                .map((wk, value) -> KeyValue.pair(wk.key(), value))
-                .peek((key, value) -> System.out.println("FINAL WINDOW - key " +key +", average temperature in celsius: " + value))
-                .to("iotOut", Produced.with(Serdes.String(), Serdes.Float()));
+                .map((wk, value) -> KeyValue.pair(wk.key(), String.valueOf(value)))
+                .to("iotOut", Produced.with(Serdes.String(), Serdes.String()));
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();
@@ -106,21 +111,17 @@ public class App
 
     public static void twitter_topic_connection(Properties props) throws IOException {
         System.out.println( "Initiating connection with twitter topic" );
-
         final StreamsBuilder builder = new StreamsBuilder();
 
         final Serde<String> stringSerde = Serdes.String();
 
         KStream<String, String> twitterA = builder.stream("twitterA",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 1))
-                .peek((key, value) -> System.out.println("twitterA key: " + key + " , value: " + value));
+                .mapValues(value -> splitValue(value, 1));
 
         KStream<String, String> twitterB = builder.stream("twitterB",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 1))
-                .peek((key, value) -> System.out.println("twitterB key: " + key + " , value: " + value));
-        System.out.println("Initiating join operation");
+                .mapValues(value -> splitValue(value, 1));
         ValueJoiner<String, String, String> valueJoiner = (leftValue, rightValue) -> leftValue + "&-/-q&" + rightValue;
 
         KStream<String, String> combinedStream =
@@ -141,8 +142,7 @@ public class App
                 //.suppress(untilWindowCloses(unbounded()))
                 .toStream()
                 .map((wk, value) -> KeyValue.pair(wk.key(), value))
-                .peek((key, value) -> System.out.println("FINAL WINDOW - key " +key +", number of normal tweets, RT and response tweets: " + value))
-                .to("twitterResults", Produced.with(Serdes.String(), Serdes.String()));
+                .to("twitterOut", Produced.with(Serdes.String(), Serdes.String()));
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();
@@ -157,14 +157,11 @@ public class App
 
         KStream<String, String> logA = builder.stream("logA",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 2))
-                .peek((key, value) -> System.out.println("logA key: " + key + " , value: " + value));
+                .mapValues(value -> splitValue(value, 2));
 
         KStream<String, String> logB = builder.stream("logB",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 2))
-                .peek((key, value) -> System.out.println("logB key: " + key + " , value: " + value));
-        System.out.println("Initiating join operation");
+                .mapValues(value -> splitValue(value, 2));
         ValueJoiner<String, String, String> valueJoiner = (leftValue, rightValue) -> leftValue + " " + rightValue;
 
         KStream<String, String> combinedStream =
@@ -172,11 +169,8 @@ public class App
                                 logB,
                                 valueJoiner,
                                 JoinWindows.of(Duration.ofMinutes(10)),
-                                StreamJoined.with(Serdes.String(), stringSerde, stringSerde))
-                        .peek((key, value) -> System.out.println("Stream-Stream Join: record key " + key + ", value:" + value)
-                        );
+                                StreamJoined.with(Serdes.String(), stringSerde, stringSerde));
 
-        System.out.println("Initiating tumbling window operation");
         combinedStream.groupByKey()
                 .windowedBy(TimeWindows.of(Duration.ofSeconds(20)))
                 .aggregate(() -> 0,
@@ -184,9 +178,8 @@ public class App
                         Materialized.with(Serdes.String(), Serdes.Integer()))
                 //.suppress(untilWindowCloses(unbounded()))
                 .toStream()
-                .map((wk, value) -> KeyValue.pair(wk.key(), value))
-                .peek((key, value) -> System.out.println("FINAL WINDOW - client ip " +key +", number of error request (between 400 and 499): " + value))
-                .to("logsResults", Produced.with(Serdes.String(), Serdes.Integer()));
+                .map((wk, value) -> KeyValue.pair(wk.key(), String.valueOf(value)))
+                .to("logOut", Produced.with(Serdes.String(), Serdes.String()));
 
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
@@ -224,7 +217,7 @@ public class App
         if (Integer.parseInt(numbers[1]) >= 400 && Integer.parseInt(numbers[1]) < 500){
             errors_number += 1;
         }
-            return errors_number;
+        return errors_number;
     }
     //mantains the total string in a fixed size
     public static String cut_string(String total){
