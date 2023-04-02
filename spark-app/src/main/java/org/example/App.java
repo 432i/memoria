@@ -22,18 +22,17 @@ public class App {
         SparkSession spark = SparkSession
                 .builder()
                 .appName("App")
+                .config("spark.sql.shuffle.partitions", 5)
+                .config("spark.sql.streaming.minBatchesToRetain", 2)
+                .config("spark.driver.cores", 2)
+                .config("spark.driver.memory", "6g")
+                .config("spark.executor.instances", 5)
+                .config("spark.executor.memory", "17g")
+                .config("spark.executor.cores", 4)
+                .config("spark.locality.wait", "100ms")
+                .config("spark.default.parallelism", 20)
                 .master("local")
                 .getOrCreate();
-        //config params
-        spark.conf().set("spark.sql.shuffle.partitions", 5);
-        spark.conf().set("spark.sql.streaming.minBatchesToRetain", 2);
-        spark.conf().set("spark.driver.cores", 2);
-        spark.conf().set("spark.driver.memory", "6g");
-        spark.conf().set("spark.executor.instances", 5);
-        spark.conf().set("spark.executor.memory", "17g");
-        spark.conf().set("spark.executor.cores", 4);
-        spark.conf().set("spark.locality.wait", "100ms");
-        spark.conf().set("spark.default.parallelism", 20);
 
         spark.sparkContext().setLogLevel("ERROR");
 
@@ -114,7 +113,7 @@ public class App {
                 {return RowFactory.create(row.get(0), avrg((Float)row.get(1), (Float)row.get(5)), row.get(2), row.get(3), row.get(4), row.get(5), row.get(6), row.get(7));},
                 RowEncoder.apply(joined_streams.schema())
         );
-        joined_streams = joined_streams.withWatermark("timestampA", "50 ms");
+        joined_streams = joined_streams.withWatermark("timestampA", "50 milliseconds");
 
         Dataset<Row> windowedAvg = joined_streams.groupBy(
                 functions.window(col("timestampA"), "15 seconds"),
@@ -124,16 +123,16 @@ public class App {
         windowedAvg = windowedAvg.withColumnRenamed("keyA", "key");
 
         windowedAvg
-        .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
-        .writeStream()
-        .trigger(Trigger.ProcessingTime("0"))
-        .format("kafka")
-        .format("console")
-        .outputMode("append")
-        .option("kafka.bootstrap.servers", IP)
-        .option("topic", "iotOut")
-        .option("checkpointLocation", "/home/ubuntu/iot_spark")
-        .start();
+                .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+                .writeStream()
+                .trigger(Trigger.ProcessingTime("0 seconds"))
+                .format("kafka")
+                .format("console")
+                .outputMode("append")
+                .option("kafka.bootstrap.servers", IP)
+                .option("topic", "iotOut")
+                .option("checkpointLocation", "C:\\Users\\aevi1\\Downloads\\IOT_TOPIC")
+                .start();
         //joined_streams.writeStream()
         //        .outputMode("append")
         //        .format("console")
@@ -190,7 +189,7 @@ public class App {
                 {return RowFactory.create(row.get(0), twitter_counter((String)row.get(1) +"&-/-q&"+ (String)row.get(5)), row.get(2), row.get(3), row.get(4), row.get(5), row.get(6), row.get(7));},
                 RowEncoder.apply(joined_streams.schema())
         );
-        joined_streams = joined_streams.withWatermark("timestampA", "50 ms");
+        joined_streams = joined_streams.withWatermark("timestampA", "50 milliseconds");
 
         Dataset<Row> windowedAvg = joined_streams.groupBy(
                 functions.window(col("timestampA"), "15 seconds"),
@@ -203,7 +202,7 @@ public class App {
         windowedAvg
                 .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
                 .writeStream()
-                .trigger(Trigger.ProcessingTime("0"))
+                .trigger(Trigger.ProcessingTime("0 seconds"))
                 .format("kafka")
                 .outputMode("append")
                 .option("kafka.bootstrap.servers", IP)
@@ -261,7 +260,7 @@ public class App {
                 {return RowFactory.create(row.get(0), check_if_error((String)row.get(1) +" "+ (String)row.get(5)), row.get(2), row.get(3), row.get(4), row.get(5), row.get(6), row.get(7));},
                 RowEncoder.apply(joined_streams.schema())
         );
-        joined_streams = joined_streams.withWatermark("timestampA", "50 ms");
+        joined_streams = joined_streams.withWatermark("timestampA", "50 milliseconds");
 
         Dataset<Row> windowedAvg = joined_streams.groupBy(
                 functions.window(col("timestampA"), "15 seconds"),
@@ -273,7 +272,7 @@ public class App {
         windowedAvg
                 .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
                 .writeStream()
-                .trigger(Trigger.ProcessingTime("0"))
+                .trigger(Trigger.ProcessingTime("0 seconds"))
                 .format("kafka")
                 .outputMode("append")
                 .option("kafka.bootstrap.servers", IP)
