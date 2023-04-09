@@ -24,16 +24,27 @@ import org.json.JSONObject;
 public class TestProducer {
     public TestProducer(int latency, int dataset) throws IOException {
         Properties properties = new Properties();
-        properties.put("bootstrap.servers", "34.176.127.40:9092");
-        properties.put("linger.ms", latency);
+        properties.put("bootstrap.servers", "xx.xxx.xxx.xxx:9092");
+        //
+        //properties.put("linger.ms", 100);
+        //properties.put("batch.size", 150000);
+        //properties.put("acks", "all");
+
+        //
         properties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
         properties.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
         if (dataset == 1){
-            twitter_producer(properties);
+            while(true){
+                twitter_producer(properties);
+            }
         } else if (dataset == 2) {
-            logs_producer(properties);
+            while(true){
+                logs_producer(properties);
+            }
         }else{
-            iot_producer(properties);
+            while(true){
+                iot_producer(properties);
+            }
         }
 
     }
@@ -138,13 +149,13 @@ public class TestProducer {
         BufferedReader br = new BufferedReader(new FileReader(path));
         int j = 0;
         int i = 0;
-        while((line = br.readLine()) != null && j != 20){
+        while((line = br.readLine()) != null){ //&& j != 20
             //parts[4] + ":" + parts[0] + "," + parts[1] + "," + parts[2] + "," + parts[3];
             String[] record_values = split_lines(line, 0);
             String key = record_values[4];
             String value = record_values[0] + "," + record_values[1] + "," + record_values[2] + "," + record_values[3];
-            System.out.println(key);
-            System.out.println(value);
+            //System.out.println(key);
+            //System.out.println(value);
             if(i == 0) {
                 producer.send(new ProducerRecord("iotA", key, value));
                 i = 1;
@@ -154,7 +165,7 @@ public class TestProducer {
             }
             j += 1;
         }
-
+        System.out.println("EOF - Starting new iteration");
         producer.close();
     }
 
