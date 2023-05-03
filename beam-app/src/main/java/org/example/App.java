@@ -4,6 +4,8 @@ package org.example;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.kafka.KafkaIO;
 import org.apache.beam.sdk.io.kafka.KafkaRecord;
+import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.*;
 import org.apache.beam.sdk.transforms.join.CoGbkResult;
 import org.apache.beam.sdk.transforms.join.CoGroupByKey;
@@ -26,6 +28,21 @@ public class App
     public static void main( String[] args ) {
         System.out.println( "conecting to kafka from apache-beam" );
         String ip = get_IP();
+        // params tunning for pipeline
+        String[] params = {
+                "--project=stone-composite-381500",
+                "--gcpTempLocation=gs://dataflow_beam_test-1/temp/",
+                "--output=gs://dataflow_beam_test-1/results/output",
+                "--runner=DataflowRunner",
+                "--zone=southamerica-west1-a",
+                "--streaming=true", //enable streaming option instead of batch
+                "--numberOfWorkerHarnessThreads=20", //number of subprocess by worker
+                "--numWorkers=1", //number of VM's at beggining, may change
+                "--maxNumWorkers=1", //max number of VM's
+        };
+        PipelineOptions options =
+                PipelineOptionsFactory.fromArgs(params).withValidation().create();
+        //
         Scanner scanner = new Scanner(System.in);
         System.out.println("Elige el dataset:");
         System.out.println("1.- Twitter");
@@ -33,11 +50,11 @@ public class App
         System.out.println("3.- IoT");
         int dataset = scanner.nextInt();
         if (dataset == 1){
-            twitter_topic_connection(ip);
+            twitter_topic_connection(ip, options);
         } else if (dataset == 2) {
-            log_topic_connection(ip);
+            log_topic_connection(ip, options);
         }else {
-            iot_topic_connection(ip);
+            iot_topic_connection(ip, options);
         }
 
     }
@@ -56,9 +73,9 @@ public class App
         }
         return ip_address;
     }
-    public static void iot_topic_connection(String IP) {
+    public static void iot_topic_connection(String IP, PipelineOptions options) {
         System.out.println( "Initiating connection with iot topic" );
-        Pipeline pipeline = Pipeline.create();
+        Pipeline pipeline = Pipeline.create(options);
         PCollection<KafkaRecord<String, String>> pCollectionA = pipeline.apply(KafkaIO.<String, String>read()
                 .withBootstrapServers(IP)
                 .withTopic("iotA")
@@ -147,14 +164,14 @@ public class App
         //write to kafka topic
         final_data.apply(KafkaIO.<Void, String>write()
                 .withBootstrapServers(IP)
-                .withTopic("iotOUT")
+                .withTopic("iotOut")
                 .withValueSerializer( StringSerializer.class).values());
         //Here we are starting the pipeline
         pipeline.run();
     }
-    public static void twitter_topic_connection(String IP) {
+    public static void twitter_topic_connection(String IP, PipelineOptions options) {
         System.out.println( "Initiating connection with twitter topic" );
-        Pipeline pipeline = Pipeline.create();
+        Pipeline pipeline = Pipeline.create(options);
         PCollection<KafkaRecord<String, String>> pCollectionA = pipeline.apply(KafkaIO.<String, String>read()
                 .withBootstrapServers(IP)
                 .withTopic("twitterA")
@@ -226,14 +243,14 @@ public class App
         //write to kafka topic
         final_data.apply(KafkaIO.<Void, String>write()
                 .withBootstrapServers(IP)
-                .withTopic("twitterOUT")
+                .withTopic("twitterOut")
                 .withValueSerializer( StringSerializer.class).values());
         //Here we are starting the pipeline
         pipeline.run();
     }
-    public static void log_topic_connection(String IP) {
+    public static void log_topic_connection(String IP, PipelineOptions options) {
         System.out.println( "Initiating connection with log topic" );
-        Pipeline pipeline = Pipeline.create();
+        Pipeline pipeline = Pipeline.create(options);
         PCollection<KafkaRecord<String, String>> pCollectionA = pipeline.apply(KafkaIO.<String, String>read()
                 .withBootstrapServers(IP)
                 .withTopic("logA")
@@ -306,7 +323,7 @@ public class App
         //write to kafka topic
         final_data.apply(KafkaIO.<Void, String>write()
         .withBootstrapServers(IP)
-        .withTopic("iotOUT")
+        .withTopic("iotOut")
                 .withValueSerializer( StringSerializer.class).values());
         //Here we are starting the pipeline
         pipeline.run();
