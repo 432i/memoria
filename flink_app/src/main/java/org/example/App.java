@@ -63,7 +63,7 @@ public class App
     }
     public static void iot_topic_connection( String IP) throws Exception {
         System.out.println( "Initiating connection with iot topic" );
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         KafkaSource<KafkaEvent> iotA = KafkaSource.<KafkaEvent>builder()
                 .setBootstrapServers(IP)
@@ -163,7 +163,7 @@ public class App
                         return (String) record.key;
                     }
                 })
-                .window(TumblingProcessingTimeWindows.of(Time.seconds(10)))
+                .window(TumblingProcessingTimeWindows.of(Time.seconds(15)))
                 .apply(new JoinFunction<KafkaEvent, KafkaEvent, String> (){
                     @Override
                     public String join(KafkaEvent record1, KafkaEvent record2) throws Exception {
@@ -190,7 +190,7 @@ public class App
     }
     public static void twitter_topic_connection(String IP) throws Exception{
         System.out.println( "Initiating connection with Twitter topic" );
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         KafkaSource<KafkaEvent> twitterA = KafkaSource.<KafkaEvent>builder()
                 .setBootstrapServers(IP)
@@ -290,7 +290,7 @@ public class App
                         return (String) record.key;
                     }
                 })
-                .window(TumblingProcessingTimeWindows.of(Time.seconds(10)))
+                .window(TumblingProcessingTimeWindows.of(Time.seconds(15)))
                 .apply(new JoinFunction<KafkaEvent, KafkaEvent, String> (){
                     @Override
                     public String join(KafkaEvent record1, KafkaEvent record2) throws Exception {
@@ -318,7 +318,7 @@ public class App
     }
     public static void log_topic_connection(String IP) throws Exception{
         System.out.println( "Initiating connection with Log topic" );
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         KafkaSource<KafkaEvent> logA = KafkaSource.<KafkaEvent>builder()
                 .setBootstrapServers(IP)
@@ -418,7 +418,7 @@ public class App
                         return (String) record.key;
                     }
                 })
-                .window(TumblingProcessingTimeWindows.of(Time.seconds(10)))
+                .window(TumblingProcessingTimeWindows.of(Time.seconds(15)))
                 .apply(new JoinFunction<KafkaEvent, KafkaEvent, String> (){
                     @Override
                     public String join(KafkaEvent record1, KafkaEvent record2) throws Exception {
