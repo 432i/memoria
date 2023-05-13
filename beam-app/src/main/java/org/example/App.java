@@ -32,9 +32,14 @@ public class App
         String[] params = {
                 "--project=stone-composite-381500",
                 "--gcpTempLocation=gs://dataflow_beam_test-1/temp/",
-                "--output=gs://dataflow_beam_test-1/results/output",
                 "--runner=DataflowRunner",
                 "--zone=southamerica-west1-a",
+                "--region=southamerica-west1",
+                //hardware conf
+                "--workerMachineType=c2-standard-8",
+                "--diskSizeGb=30",
+                "--workerDiskType=pd-ssd",
+                //params for performance
                 "--streaming=true", //enable streaming option instead of batch
                 "--numberOfWorkerHarnessThreads=20", //number of subprocess by worker
                 "--numWorkers=1", //number of VM's at beggining, may change
