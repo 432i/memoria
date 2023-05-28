@@ -33,8 +33,8 @@ public class App {
                 .config("spark.default.parallelism", 20)
                 .master("local")
                 .getOrCreate();
-
-        spark.sparkContext().setLogLevel("ERROR");
+        //spark.conf().set("spark.sql.shuffle.partitions",2);
+        spark.sparkContext().setLogLevel("WARN");
 
         System.out.println("Elige el dataset:");
         System.out.println("1.- Twitter");
@@ -125,13 +125,12 @@ public class App {
         windowedAvg
                 .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
                 .writeStream()
-                .trigger(Trigger.ProcessingTime("0 seconds"))
+                .trigger(Trigger.ProcessingTime("1 minutes"))
                 .format("kafka")
-                .format("console")
                 .outputMode("append")
                 .option("kafka.bootstrap.servers", IP)
                 .option("topic", "iotOut")
-                .option("checkpointLocation", "C:\\Users\\aevi1\\Downloads\\IOT_TOPIC")
+                .option("checkpointLocation", "/home/ubuntu/iot_spark")
                 .start();
         //joined_streams.writeStream()
         //        .outputMode("append")
@@ -202,7 +201,7 @@ public class App {
         windowedAvg
                 .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
                 .writeStream()
-                .trigger(Trigger.ProcessingTime("0 seconds"))
+                .trigger(Trigger.ProcessingTime("1 minutes"))
                 .format("kafka")
                 .outputMode("append")
                 .option("kafka.bootstrap.servers", IP)
@@ -272,7 +271,7 @@ public class App {
         windowedAvg
                 .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
                 .writeStream()
-                .trigger(Trigger.ProcessingTime("0 seconds"))
+                .trigger(Trigger.ProcessingTime("1 minutes"))
                 .format("kafka")
                 .outputMode("append")
                 .option("kafka.bootstrap.servers", IP)
