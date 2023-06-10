@@ -2,6 +2,7 @@ package twitterclass;
 
 import com.google.gson.reflect.TypeToken;
 import com.twitter.clientlib.JSON;
+import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
@@ -18,6 +19,7 @@ import com.twitter.clientlib.TwitterCredentialsBearer;
 import com.twitter.clientlib.ApiException;
 import com.twitter.clientlib.api.TwitterApi;
 import com.twitter.clientlib.model.*;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -33,6 +35,21 @@ public class TestProducer {
         //
         properties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
         properties.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        // thread that runs when the program is closed
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            public void run() {
+                System.out.println("TOPIC A INFO");
+                System.out.println("Records sent successfully: " + records_count_typeA);
+                System.out.println("Total values bytes sent: " + total_values_bytes_typeA);
+                System.out.println("Total keys bytes sent: " + total_keys_bytes_typeA);
+                System.out.println("------------------------------------------------------");
+                System.out.println("TOPIC B INFO");
+                System.out.println("Records sent successfully: " + records_count_typeB);
+                System.out.println("Total values bytes sent: " + total_values_bytes_typeB);
+                System.out.println("Total keys bytes sent: " + total_keys_bytes_typeB);
+                //TODO: CALCULAR BYTES ENVIADOS POR SEGUNDO
+            }
+        });
         if (dataset == 1){
             while(true){
                 twitter_producer(properties);
@@ -86,12 +103,12 @@ public class TestProducer {
                KafkaProducer producer = new KafkaProducer(properties);
                int j = 0;
                int i = 0;
-               while(tweetText != null && j != 20){
+               while(tweetText != null){ //&& j != 20
                    if(i == 0) {
-                       producer.send(new ProducerRecord("twitterA", key, value));
+                       send_record_to_kafka(producer, key, value, "twitterA", 0);
                        i = 1;
                    }else{
-                       producer.send(new ProducerRecord("twitterB", key, value));
+                       send_record_to_kafka(producer, key, value, "twitterB", 1);
                        i = 0;
                    }
                    j += 1;
@@ -125,16 +142,16 @@ public class TestProducer {
         BufferedReader br = new BufferedReader(new FileReader(path));
         int j = 0;
         int i = 0;
-        while((line = br.readLine()) != null && j != 10){
+        while((line = br.readLine()) != null ){ //&& j != 10
             String[] record_values = split_lines(line, 1);
             //parts[0] + ":" + parts[1];
             String key = record_values[0];
             String value = record_values[1];
             if(i == 0) {
-                producer.send(new ProducerRecord("logA", key, value));
+                send_record_to_kafka(producer, key, value, "logA", 0);
                 i = 1;
             }else{
-                producer.send(new ProducerRecord("logB", key, value));
+                send_record_to_kafka(producer, key, value, "logB", 1);
                 i = 0;
             }
             j += 1;
@@ -144,7 +161,7 @@ public class TestProducer {
     }
     public void iot_producer(Properties properties) throws IOException {
         KafkaProducer producer = new KafkaProducer(properties);
-        String path = "C:/Users/aevi1/OneDrive/Documentos/temperature.csv";
+        String path = "C:\\Users\\aevi1\\Documents\\MEMORIA\\codigos\\datasets\\IoT\\temperature.csv";
         String line;
         BufferedReader br = new BufferedReader(new FileReader(path));
         int j = 0;
@@ -157,10 +174,10 @@ public class TestProducer {
             //System.out.println(key);
             //System.out.println(value);
             if(i == 0) {
-                producer.send(new ProducerRecord("iotA", key, value));
+                send_record_to_kafka(producer, key, value, "iotA", 0);
                 i = 1;
             }else{
-                producer.send(new ProducerRecord("iotB", key, value));
+                send_record_to_kafka(producer, key, value, "iotB", 1);
                 i = 0;
             }
             j += 1;
@@ -168,7 +185,37 @@ public class TestProducer {
         System.out.println("EOF - Starting new iteration");
         producer.close();
     }
-
+    //method to calculate metrics about the sent data
+    public static int records_count_typeA;
+    public static int records_count_typeB;
+    public static int total_values_bytes_typeA;
+    public static int total_values_bytes_typeB;
+    public static int total_keys_bytes_typeA;
+    public static int total_keys_bytes_typeB;
+    public void send_record_to_kafka(KafkaProducer producer, String key, String value, String topic_name, Integer topic_type){
+        ProducerRecord record = new ProducerRecord(topic_name, key, value);
+        if(topic_type == 0) { //topic type A
+            producer.send(record, new Callback() {
+                public void onCompletion(RecordMetadata metadata, Exception e) {
+                    if(e != null)
+                        e.printStackTrace();
+                    records_count_typeA += 1;
+                    total_values_bytes_typeA += metadata.serializedValueSize();
+                    total_keys_bytes_typeA += metadata.serializedKeySize();
+                }
+            });
+        }else{ //topic type B
+            producer.send(record, new Callback() {
+                public void onCompletion(RecordMetadata metadata, Exception e) {
+                    if(e != null)
+                        e.printStackTrace();
+                    records_count_typeB += 1;
+                    total_values_bytes_typeB += metadata.serializedValueSize();
+                    total_keys_bytes_typeB += metadata.serializedKeySize();
+                }
+            });
+        }
+    }
     public String[] split_lines(String line, Integer source){
         String[] parts = new String[0];
         if(source == 0){ //iot line separator
