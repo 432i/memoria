@@ -22,7 +22,7 @@ public class App
     public static void main ( String[] args ) throws IOException {
         //it has to read from the input topic (example: iotA) and from the output topic (out_iotA)
         Properties properties = new Properties();
-        properties.put("bootstrap.servers", "34.176.92.218:9092");
+        properties.put("bootstrap.servers", "IP");
         properties.put("group.id", "test-topic-consumer");
         properties.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
         properties.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
@@ -49,6 +49,7 @@ public class App
     public static int records_count;
     public static int values_total_bytes;
     public static int keys_total_bytes;
+    public static int time_elapsed_in_secs;
     public static void topic_reader(Properties properties, String input_topic_name, String output_topic_name,
                                     String input_topic_name2, String path) throws IOException {
 
@@ -68,7 +69,7 @@ public class App
                 }
                 try {
                     output_file.close();
-                    calculate_throughput(path);
+                    calculate_throughput();
 
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -94,56 +95,13 @@ public class App
         }
     }
 
-    public static void calculate_throughput(String path){
-        String first_record = null;
-        String last_record = null;
-        String line = "";
-        int i = 0;
-        // reading input file to extract first line
-        try {
-            File myObj = new File(path + "\\input_timestamps.txt");
-            Scanner myReader = new Scanner(myObj);
-            while ((first_record == null) && myReader.hasNextLine()) {
-                line = myReader.nextLine();
-                if(i == 1){
-                    first_record = line;
-                }
-                i += 1;
-            }
-            myReader.close();
-        } catch (FileNotFoundException e) {
-            System.out.println("An error occurred reading first record's line.");
-            e.printStackTrace();
-        }
-
-        //reading output file to extract last line
-        try {
-            File myObj = new File(path + "\\output_timestamps.txt");
-            Scanner myReader = new Scanner(myObj);
-            while (myReader.hasNextLine()) {
-                line = myReader.nextLine();
-            }
-            last_record = line;
-            myReader.close();
-        } catch (FileNotFoundException e) {
-            System.out.println("An error occurred reading first record's line.");
-            e.printStackTrace();
-        }
-        //extracting timestamps
-        String[] first_record_parts = first_record.split(";");
-        String[] last_record_parts = last_record.split(";");
-        first_record = first_record_parts[first_record_parts.length-1];
-        last_record = last_record_parts[last_record_parts.length-1];
-        long first_record_timestamp = Long.parseLong(first_record); //MILLISECONDS
-        long last_record_timestamp = Long.parseLong(last_record); // LONG IS 64 BITS INT
-        System.out.println("First timestamp -> "+first_record+". Last timestamp -> "+last_record);
-        System.out.println("First timestamp converted -> "+first_record_timestamp+". Last timestamp converted -> "+last_record_timestamp);
-        double time_elapsed_in_secs = (last_record_timestamp- first_record_timestamp)/100000;
+    public static void calculate_throughput(){
+        //TODO: Calcular time_elapsed_in_secs
         double total_megabytes = (keys_total_bytes+values_total_bytes)/1000000;
         double throughput = total_megabytes/time_elapsed_in_secs;
         double total_bytes = keys_total_bytes+values_total_bytes;
         System.out.println("Received a total of "+records_count+" records in "+time_elapsed_in_secs+" seconds");
-        System.out.println("Total BYTES received: "+total_bytes);
+        System.out.println("Total bytes received: "+total_bytes);
         System.out.println("Throughput is equal to "+throughput+" MB/s.");
 
     }
