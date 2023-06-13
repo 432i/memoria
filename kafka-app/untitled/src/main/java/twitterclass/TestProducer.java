@@ -8,6 +8,8 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 
 import java.io.*;
 import java.lang.reflect.Type;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Properties;
 import java.util.HashSet;
 import java.util.Set;
@@ -38,6 +40,15 @@ public class TestProducer {
         // thread that runs when the program is closed
         Runtime.getRuntime().addShutdownHook(new Thread() {
             public void run() {
+                end = Instant.now();
+                long timeElapsed = Duration.between(start, end).toSeconds();
+
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                System.out.println("-- TOTAL TIME ELAPSED FROM FIRST MSG SENT: "+ timeElapsed +" seconds --");
                 System.out.println("TOPIC A INFO");
                 System.out.println("Records sent successfully: " + records_count_typeA);
                 System.out.println("Total values bytes sent: " + total_values_bytes_typeA);
@@ -192,6 +203,9 @@ public class TestProducer {
     public static int total_values_bytes_typeB;
     public static int total_keys_bytes_typeA;
     public static int total_keys_bytes_typeB;
+    public static boolean timer_flag = true;
+    public static Instant start;
+    public static Instant end;
     public void send_record_to_kafka(KafkaProducer producer, String key, String value, String topic_name, Integer topic_type){
         ProducerRecord record = new ProducerRecord(topic_name, key, value);
         if(topic_type == 0) { //topic type A
@@ -202,6 +216,10 @@ public class TestProducer {
                     records_count_typeA += 1;
                     total_values_bytes_typeA += metadata.serializedValueSize();
                     total_keys_bytes_typeA += metadata.serializedKeySize();
+                    if(timer_flag){
+                        start = Instant.now();
+                        timer_flag = false;
+                    }
                 }
             });
         }else{ //topic type B
