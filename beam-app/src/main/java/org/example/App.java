@@ -38,7 +38,7 @@ public class App
                 //hardware conf
                 "--workerMachineType=c2-standard-8",
                 "--diskSizeGb=30",
-                "--workerDiskType=pd-ssd",
+                "--workerDiskType=compute.googleapis.com/projects//zones//diskTypes/pd-ssd",
                 //params for performance
                 "--streaming=true", //enable streaming option instead of batch
                 "--numberOfWorkerHarnessThreads=20", //number of subprocess by worker
