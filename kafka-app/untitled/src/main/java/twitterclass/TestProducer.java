@@ -30,9 +30,9 @@ public class TestProducer {
         Properties properties = new Properties();
         properties.put("bootstrap.servers", "xx.xxx.xxx.xxx:9092");
         //
-        //properties.put("linger.ms", 100);
-        //properties.put("batch.size", 150000);
-        //properties.put("acks", "all");
+        //properties.put("linger.ms", 1000); //it will wait 1 second at most before sending a request
+        //properties.put("batch.size", 1000000); // will sent a request when messages sum this quantity
+        properties.put("client.id", "datasetsProducer");
 
         //
         properties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
@@ -44,23 +44,35 @@ public class TestProducer {
                 long timeElapsed = Duration.between(start, end).toSeconds();
 
                 try {
-                    Thread.sleep(2000);
+                    Thread.sleep(100);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
+                //calculating MB sent per second
+                long total_bytes_sent_A = total_values_bytes_typeA + total_keys_bytes_typeA;
+                long total_bytes_sent_B = total_values_bytes_typeB + total_keys_bytes_typeB;
+                double total_mb_A = total_bytes_sent_A/1000000;
+                double total_mb_B = total_bytes_sent_B/1000000;
+                double mb_per_second_A = total_mb_A/timeElapsed;
+                double mb_per_second_B = total_mb_B/timeElapsed;
+
+                //
                 System.out.println("-- TOTAL TIME ELAPSED FROM FIRST MSG SENT: "+ timeElapsed +" seconds --");
                 System.out.println("TOPIC A INFO");
                 System.out.println("Records sent successfully: " + records_count_typeA);
                 System.out.println("Total values bytes sent: " + total_values_bytes_typeA);
                 System.out.println("Total keys bytes sent: " + total_keys_bytes_typeA);
+                System.out.println("Total megabytes per second: " + mb_per_second_A+" MB/s");
                 System.out.println("------------------------------------------------------");
                 System.out.println("TOPIC B INFO");
                 System.out.println("Records sent successfully: " + records_count_typeB);
                 System.out.println("Total values bytes sent: " + total_values_bytes_typeB);
                 System.out.println("Total keys bytes sent: " + total_keys_bytes_typeB);
-                //TODO: CALCULAR BYTES ENVIADOS POR SEGUNDO
+                System.out.println("Total megabytes per second: " + mb_per_second_B+" MB/s");
+
             }
         });
+        //
         if (dataset == 1){
             while(true){
                 twitter_producer(properties);
@@ -206,6 +218,7 @@ public class TestProducer {
     public static boolean timer_flag = true;
     public static Instant start;
     public static Instant end;
+    public static Instant current_time;
     public void send_record_to_kafka(KafkaProducer producer, String key, String value, String topic_name, Integer topic_type){
         ProducerRecord record = new ProducerRecord(topic_name, key, value);
         if(topic_type == 0) { //topic type A
@@ -220,6 +233,13 @@ public class TestProducer {
                         start = Instant.now();
                         timer_flag = false;
                     }
+                    // for debugging reasons
+                    current_time = Instant.now();
+                    long timeElapsed = Duration.between(start, current_time).toSeconds();
+                    if(timeElapsed == 10){
+                        System.exit(0);
+                    }
+                    //
                 }
             });
         }else{ //topic type B
