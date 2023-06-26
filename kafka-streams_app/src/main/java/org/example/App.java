@@ -1,7 +1,5 @@
 package org.example;
 
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
@@ -80,11 +78,11 @@ public class App
 
         KStream<String, String> iotA = builder.stream("iotA",
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 0));
+                .mapValues(value -> splitValue(value, 0, 1));
 
         KStream<String, String> iotB = builder.stream("iotB",
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 0));
+                .mapValues(value -> splitValue(value, 0, 0));
 
         ValueJoiner<String, String, Float> valueJoiner = (leftValue, rightValue) -> Float.parseFloat(leftValue) + Float.parseFloat(rightValue);
 
@@ -102,7 +100,7 @@ public class App
                         Materialized.with(Serdes.String(), Serdes.Float()))
                         //.suppress(untilWindowCloses(unbounded()))
                 .toStream()
-                .map((wk, value) -> KeyValue.pair(wk.key(), String.valueOf(value)))
+                .map((wk, value) -> KeyValue.pair(wk.key(), String.valueOf(value)+"!!432&%$(())#"+current_id_A+"_"+current_id_B))
                 .to("iotOut", Produced.with(Serdes.String(), Serdes.String()));
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
@@ -117,11 +115,11 @@ public class App
 
         KStream<String, String> twitterA = builder.stream("twitterA",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 1));
+                .mapValues(value -> splitValue(value, 1,0));
 
         KStream<String, String> twitterB = builder.stream("twitterB",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 1));
+                .mapValues(value -> splitValue(value, 1,1));
         ValueJoiner<String, String, String> valueJoiner = (leftValue, rightValue) -> leftValue + "&-/-q&" + rightValue;
 
         KStream<String, String> combinedStream =
@@ -141,7 +139,7 @@ public class App
                         Materialized.with(Serdes.String(), Serdes.String()))
                 //.suppress(untilWindowCloses(unbounded()))
                 .toStream()
-                .map((wk, value) -> KeyValue.pair(wk.key(), value))
+                .map((wk, value) -> KeyValue.pair(wk.key(), value+"!!432&%$(())#"+current_id_A+"_"+current_id_B))
                 .to("twitterOut", Produced.with(Serdes.String(), Serdes.String()));
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
@@ -157,11 +155,11 @@ public class App
 
         KStream<String, String> logA = builder.stream("logA",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 2));
+                .mapValues(value -> splitValue(value, 2, 0));
 
         KStream<String, String> logB = builder.stream("logB",
                         Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 2));
+                .mapValues(value -> splitValue(value, 2, 1));
         ValueJoiner<String, String, String> valueJoiner = (leftValue, rightValue) -> leftValue + " " + rightValue;
 
         KStream<String, String> combinedStream =
@@ -178,7 +176,7 @@ public class App
                         Materialized.with(Serdes.String(), Serdes.Integer()))
                 //.suppress(untilWindowCloses(unbounded()))
                 .toStream()
-                .map((wk, value) -> KeyValue.pair(wk.key(), String.valueOf(value)))
+                .map((wk, value) -> KeyValue.pair(wk.key(), String.valueOf(value)+"!!432&%$(())#"+current_id_A+"_"+current_id_B))
                 .to("logOut", Produced.with(Serdes.String(), Serdes.String()));
 
 
@@ -188,23 +186,36 @@ public class App
 
 
     //helper methods
-
+    public static String current_id_A;
+    public static String current_id_B;
     //method to parse records from the different sources
-    public static String splitValue(String value, Integer source){
+    public static String splitValue(String value, Integer source, Integer from_topic){ //topic A is 0, topic B is 1
         String[] parts = new String[0];
+        String msg_id = "";
+        String msg_value = "";
         if(source == 0){ //iot line separator
-            //asumming an input of type 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4
+            //asumming an input of type 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4,ID
+            //now would be 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4,ID
             parts = value.split(",");
-            return parts[3];
+            msg_id = parts[4];
+            msg_value = parts[3];
         } else if (source == 2) { //logs line separator
             //[22/Jan/2019:03:56:16 +0330] "GET /image/60844/productModel/200x200 HTTP/1.1" 402 5667 "https://www.zanbil.ir/m/filter/b113" "Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36" "-
             parts = value.split("(1.1\" )|(1.0\" )|(\" (?=\\d{3}))");
+            msg_id = value.split("!!432&%$(())#")[1];
             parts = parts[1].split(" ");
             //System.out.println(Arrays.toString(parts));
-            return parts[0];
+            msg_value = parts[0];
         }else{ //twitter line separator
-            return value.substring(0, 5);
+            msg_id = value.split("!!432&%$(())#")[1];
+            msg_value = value.substring(0, 5);
         }
+        if(from_topic == 0){
+            current_id_A = msg_id;
+        }else{
+            current_id_B = msg_id;
+        }
+        return msg_value;
     }
     //checks if the value is a 400-499 request code
     // and return the count of them
