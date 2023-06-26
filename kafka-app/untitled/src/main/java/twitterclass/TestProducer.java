@@ -121,7 +121,7 @@ public class TestProducer {
                //String id = jsonObject.getJSONObject("data").getString("author_id");
                //System.out.println(tweetText);
                String key = "1";
-               String value = tweetText;
+               String value = tweetText + "!!432&%$(())#" + generate_uniq_id();
 
                KafkaProducer producer = new KafkaProducer(properties);
                int j = 0;
@@ -169,7 +169,7 @@ public class TestProducer {
             String[] record_values = split_lines(line, 1);
             //parts[0] + ":" + parts[1];
             String key = record_values[0];
-            String value = record_values[1];
+            String value = record_values[1] + "!!432&%$(())#" + generate_uniq_id();
             if(i == 0) {
                 send_record_to_kafka(producer, key, value, "logA", 0);
                 i = 1;
@@ -193,7 +193,8 @@ public class TestProducer {
             //parts[4] + ":" + parts[0] + "," + parts[1] + "," + parts[2] + "," + parts[3];
             String[] record_values = split_lines(line, 0);
             String key = record_values[4];
-            String value = record_values[0] + "," + record_values[1] + "," + record_values[2] + "," + record_values[3];
+            String value = record_values[0] + "," + record_values[1] + "," + record_values[2] + "," + record_values[3]
+                    + "," + generate_uniq_id();
             //System.out.println(key);
             //System.out.println(value);
             if(i == 0) {
@@ -253,6 +254,11 @@ public class TestProducer {
                 }
             });
         }
+    }
+    public static long unique_id = 0;
+    public String generate_uniq_id(){
+        unique_id += 1;
+        return String.valueOf(unique_id);
     }
     public String[] split_lines(String line, Integer source){
         String[] parts = new String[0];
