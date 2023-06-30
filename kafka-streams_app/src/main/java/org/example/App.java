@@ -78,11 +78,11 @@ public class App
 
         KStream<String, String> iotA = builder.stream("iotA",
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 0, 1));
+                .mapValues(value -> splitValue(value, 0, 0));
 
         KStream<String, String> iotB = builder.stream("iotB",
                 Consumed.with(stringSerde, stringSerde).withTimestampExtractor(new StreamsTimestampExtractor.myTimestampExtractor()) )
-                .mapValues(value -> splitValue(value, 0, 0));
+                .mapValues(value -> splitValue(value, 0, 1));
 
         ValueJoiner<String, String, Float> valueJoiner = (leftValue, rightValue) -> Float.parseFloat(leftValue) + Float.parseFloat(rightValue);
 
