@@ -98,7 +98,7 @@ public class App
         PCollection<KV<String, String>> wrdA = pCollectionA
                 .apply(
                 MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
-                        .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),0)))
+                        .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),0, 0)))
                 ).apply(
                         Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(30)))
                                 .triggering(Repeatedly.forever(AfterWatermark.pastEndOfWindow()))
@@ -119,7 +119,7 @@ public class App
         PCollection<KV<String, String>> wrdB = pCollectionB
                 .apply(
                 MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
-                        .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),0)))
+                        .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),0, 1)))
                 ).apply(
                         Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(30)))
                                 .triggering(Repeatedly.forever(AfterWatermark.pastEndOfWindow()))
@@ -161,7 +161,7 @@ public class App
                                             System.out.println("Unable to join event1 and event2");
                                         }else{
                                             avg_temp = avg_temp/array_lenght;
-                                            c.output(String.valueOf(avg_temp));
+                                            c.output(String.valueOf(avg_temp)+"!!432&%$(())#"+current_id_A+"_"+current_id_B);
                                         }
 
                                     }
@@ -194,7 +194,7 @@ public class App
         PCollection<KV<String, String>> wrdA = pCollectionA
                 .apply(
                         MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
-                                .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),3)))
+                                .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),3, 0)))
                 ).apply(
                         Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(30)))
                                 .triggering(Repeatedly.forever(AfterWatermark.pastEndOfWindow()))
@@ -204,7 +204,7 @@ public class App
         PCollection<KV<String, String>> wrdB = pCollectionB
                 .apply(
                         MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
-                                .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),3)))
+                                .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),3, 1)))
                 ).apply(
                         Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(30)))
                                 .triggering(Repeatedly.forever(AfterWatermark.pastEndOfWindow()))
@@ -241,7 +241,7 @@ public class App
                                             System.out.println("Unable to join event1 and event2");
                                         }else{
                                             String result = twitter_counter(total_concat);
-                                            c.output(result);
+                                            c.output(result+"!!432&%$(())#"+current_id_A+"_"+current_id_B);
                                         }
                                     }
                                 }));
@@ -273,7 +273,7 @@ public class App
         PCollection<KV<String, String>> wrdA = pCollectionA
                 .apply(
                         MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
-                                .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),2)))
+                                .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),2, 0)))
                 ).apply(
                         Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(30)))
                                 .triggering(Repeatedly.forever(AfterWatermark.pastEndOfWindow()))
@@ -283,7 +283,7 @@ public class App
         PCollection<KV<String, String>> wrdB = pCollectionB
                 .apply(
                         MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
-                                .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),2)))
+                                .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),2, 1)))
                 ).apply(
                         Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(30)))
                                 .triggering(Repeatedly.forever(AfterWatermark.pastEndOfWindow()))
@@ -321,7 +321,7 @@ public class App
                                         if(total_errors == 0) {
                                             System.out.println("there is no errors or something happened");
                                         }else{
-                                            c.output(String.valueOf(total_errors));
+                                            c.output(String.valueOf(total_errors)+"!!432&%$(())#"+current_id_A+"_"+current_id_B);
                                         }
                                     }
                                 }));
@@ -334,23 +334,36 @@ public class App
         pipeline.run();
     }
     //helper methods
-
+    public static String current_id_A;
+    public static String current_id_B;
     //method to parse records from the different sources
-    public static String splitValue(String value, Integer source){
+    public static String splitValue(String value, Integer source, Integer from_topic){ //topic A is 0, topic B is 1
         String[] parts = new String[0];
+        String msg_id = "";
+        String msg_value = "";
         if(source == 0){ //iot line separator
-            //asumming an input of type 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4
+            //asumming an input of type 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4,ID
+            //now would be 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4,ID
             parts = value.split(",");
-            return parts[3];
+            msg_id = parts[4];
+            msg_value = parts[3];
         } else if (source == 2) { //logs line separator
             //[22/Jan/2019:03:56:16 +0330] "GET /image/60844/productModel/200x200 HTTP/1.1" 402 5667 "https://www.zanbil.ir/m/filter/b113" "Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36" "-
             parts = value.split("(1.1\" )|(1.0\" )|(\" (?=\\d{3}))");
+            msg_id = value.split("!!432&%$(())#")[1];
             parts = parts[1].split(" ");
             //System.out.println(Arrays.toString(parts));
-            return parts[0];
+            msg_value = parts[0];
         }else{ //twitter line separator
-            return value.substring(0, 5);
+            msg_id = value.split("!!432&%$(())#")[1];
+            msg_value = value.substring(0, 5);
         }
+        if(from_topic == 0){
+            current_id_A = msg_id;
+        }else{
+            current_id_B = msg_id;
+        }
+        return msg_value;
     }
     //counts and store in variables the type of tweet received
     public static String twitter_counter(String tweets){
