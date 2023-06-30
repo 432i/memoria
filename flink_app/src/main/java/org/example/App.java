@@ -134,14 +134,14 @@ public class App
 
         DataStream<KafkaEvent> mapped_iotA = iotA_datastream
                 .map((MapFunction<KafkaEvent, KafkaEvent>) record -> {
-                    String new_value = splitValue(record.value, 0);
+                    String new_value = splitValue(record.value, 0,0);
                     return new KafkaEvent(record.key, new_value, record.topic, record.partition,
                             record.offset, record.timestamp);
                 })
                 .keyBy(record -> record.key);
         DataStream<KafkaEvent> mapped_iotB = iotB_datastream
                 .map((MapFunction<KafkaEvent, KafkaEvent>) record -> {
-                    String new_value = splitValue(record.value, 0);
+                    String new_value = splitValue(record.value, 0, 1);
                     return new KafkaEvent(record.key, new_value, record.topic, record.partition,
                             record.offset, record.timestamp);
                 })
@@ -168,7 +168,7 @@ public class App
                     @Override
                     public String join(KafkaEvent record1, KafkaEvent record2) throws Exception {
                         Float sum = Float.parseFloat(record1.value) + Float.parseFloat(record2.value);
-                        return String.valueOf(sum/2);
+                        return String.valueOf(sum/2)+"!!432&%$(())#"+current_id_A+"_"+current_id_B;
                     }
                 });
         //joined_streams.print();
@@ -261,14 +261,14 @@ public class App
 
         DataStream<KafkaEvent> mapped_twitterA = twitterA_datastream
                 .map((MapFunction<KafkaEvent, KafkaEvent>) record -> {
-                    String new_value = splitValue(record.value, 3);
+                    String new_value = splitValue(record.value, 3, 0);
                     return new KafkaEvent(record.key, new_value, record.topic, record.partition,
                             record.offset, record.timestamp);
                 })
                 .keyBy(record -> record.key);
         DataStream<KafkaEvent> mapped_twitterB = twitterB_datastream
                 .map((MapFunction<KafkaEvent, KafkaEvent>) record -> {
-                    String new_value = splitValue(record.value, 3);
+                    String new_value = splitValue(record.value, 3, 1);
                     return new KafkaEvent(record.key, new_value, record.topic, record.partition,
                             record.offset, record.timestamp);
                 })
@@ -296,7 +296,7 @@ public class App
                     public String join(KafkaEvent record1, KafkaEvent record2) throws Exception {
                         String twitter_counter = record1.value +"&-/-q&"+ record2.value;
                         twitter_counter = twitter_counter(twitter_counter);
-                        return twitter_counter;
+                        return twitter_counter+"!!432&%$(())#"+current_id_A+"_"+current_id_B;
                     }
                 });
         //joined_streams.print();
@@ -389,14 +389,14 @@ public class App
 
         DataStream<KafkaEvent> mapped_logA = logA_datastream
                 .map((MapFunction<KafkaEvent, KafkaEvent>) record -> {
-                    String new_value = splitValue(record.value, 2);
+                    String new_value = splitValue(record.value, 2, 0);
                     return new KafkaEvent(record.key, new_value, record.topic, record.partition,
                             record.offset, record.timestamp);
                 })
                 .keyBy(record -> record.key);
         DataStream<KafkaEvent> mapped_logB = logB_datastream
                 .map((MapFunction<KafkaEvent, KafkaEvent>) record -> {
-                    String new_value = splitValue(record.value, 2);
+                    String new_value = splitValue(record.value, 2, 1);
                     return new KafkaEvent(record.key, new_value, record.topic, record.partition,
                             record.offset, record.timestamp);
                 })
@@ -424,7 +424,7 @@ public class App
                     public String join(KafkaEvent record1, KafkaEvent record2) throws Exception {
                         String log_strs = record1.value +" "+ record2.value;
                         Integer errors = check_if_error(log_strs);
-                        return Integer.toString(errors);
+                        return Integer.toString(errors)+"!!432&%$(())#"+current_id_A+"_"+current_id_B;
                     }
                 });
         //joined_streams.print();
@@ -445,23 +445,36 @@ public class App
         env.execute();
     }
     //helper methods
-
+    public static String current_id_A;
+    public static String current_id_B;
     //method to parse records from the different sources
-    public static String splitValue(String value, Integer source){
+    public static String splitValue(String value, Integer source, Integer from_topic){ //topic A is 0, topic B is 1
         String[] parts = new String[0];
+        String msg_id = "";
+        String msg_value = "";
         if(source == 0){ //iot line separator
-            //asumming an input of type 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4
+            //asumming an input of type 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4,ID
+            //now would be 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4,ID
             parts = value.split(",");
-            return parts[3];
+            msg_id = parts[4];
+            msg_value = parts[3];
         } else if (source == 2) { //logs line separator
             //[22/Jan/2019:03:56:16 +0330] "GET /image/60844/productModel/200x200 HTTP/1.1" 402 5667 "https://www.zanbil.ir/m/filter/b113" "Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36" "-
             parts = value.split("(1.1\" )|(1.0\" )|(\" (?=\\d{3}))");
+            msg_id = value.split("!!432&%$(())#")[1];
             parts = parts[1].split(" ");
             //System.out.println(Arrays.toString(parts));
-            return parts[0];
+            msg_value = parts[0];
         }else{ //twitter line separator
-            return value.substring(0, 5);
+            msg_id = value.split("!!432&%$(())#")[1];
+            msg_value = value.substring(0, 5);
         }
+        if(from_topic == 0){
+            current_id_A = msg_id;
+        }else{
+            current_id_B = msg_id;
+        }
+        return msg_value;
     }
     //checks if the value is a 400-499 request code
     // and return the count of them
