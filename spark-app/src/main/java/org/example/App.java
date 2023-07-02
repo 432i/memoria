@@ -95,12 +95,12 @@ public class App {
 
 
         Dataset<Row> mapped_iotA = iotA.map((MapFunction<Row, Row>) row ->
-        {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0), row.get(2), row.get(3));},
+        {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0, 0), row.get(2), row.get(3));},
                 RowEncoder.apply(iotA.schema()));
         mapped_iotA = mapped_iotA.selectExpr("CAST(keyA AS STRING)", "CAST(valueA AS FLOAT)",
                 "CAST(topicA AS STRING)", "CAST(timestampA AS TIMESTAMP)");
         Dataset<Row> mapped_iotB = iotB.map((MapFunction<Row, Row>) row ->
-        {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0), row.get(2), row.get(3));},
+        {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0, 1), row.get(2), row.get(3));},
                 RowEncoder.apply(iotB.schema()));
         mapped_iotB = mapped_iotB.selectExpr("CAST(keyB AS STRING)", "CAST(valueB AS FLOAT)",
                 "CAST(topicB AS STRING)", "CAST(timestampB AS TIMESTAMP)");
@@ -108,7 +108,7 @@ public class App {
         Dataset<Row> joined_streams = mapped_iotA
                 .join(mapped_iotB, mapped_iotA.col("keyA").equalTo(mapped_iotB.col("keyB")));
 
-        joined_streams = joined_streams .map(
+        joined_streams = joined_streams.map(
                 (MapFunction<Row, Row>) row ->
                 {return RowFactory.create(row.get(0), avrg((Float)row.get(1), (Float)row.get(5)), row.get(2), row.get(3), row.get(4), row.get(5), row.get(6), row.get(7));},
                 RowEncoder.apply(joined_streams.schema())
@@ -121,6 +121,8 @@ public class App {
         ).avg("valueA");
         windowedAvg = windowedAvg.withColumnRenamed("avg(valueA)", "value");
         windowedAvg = windowedAvg.withColumnRenamed("keyA", "key");
+
+        windowedAvg = windowedAvg.withColumn("value", concat(col("value"), lit("!!432&%$(())#"+current_id_A+"_"+current_id_B)));
 
         windowedAvg
                 .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
@@ -170,12 +172,12 @@ public class App {
 
 
         Dataset<Row> mapped_twitterA = twitterA.map((MapFunction<Row, Row>) row ->
-                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 3), row.get(2), row.get(3));},
+                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 3, 0), row.get(2), row.get(3));},
                 RowEncoder.apply(twitterA.schema()));
         mapped_twitterA = mapped_twitterA.selectExpr("CAST(keyA AS STRING)", "CAST(valueA AS STRING)",
                 "CAST(topicA AS STRING)", "CAST(timestampA AS TIMESTAMP)");
         Dataset<Row> mapped_twitterB = twitterB.map((MapFunction<Row, Row>) row ->
-                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 3), row.get(2), row.get(3));},
+                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 3, 1), row.get(2), row.get(3));},
                 RowEncoder.apply(twitterB.schema()));
         mapped_twitterB = mapped_twitterB.selectExpr("CAST(keyB AS STRING)", "CAST(valueB AS STRING)",
                 "CAST(topicB AS STRING)", "CAST(timestampB AS TIMESTAMP)");
@@ -241,12 +243,12 @@ public class App {
 
 
         Dataset<Row> mapped_logA = logA.map((MapFunction<Row, Row>) row ->
-                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 2), row.get(2), row.get(3));},
+                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 2, 0), row.get(2), row.get(3));},
                 RowEncoder.apply(logA.schema()));
         mapped_logA = mapped_logA.selectExpr("CAST(keyA AS STRING)", "CAST(valueA AS STRING)",
                 "CAST(topicA AS STRING)", "CAST(timestampA AS TIMESTAMP)");
         Dataset<Row> mapped_logB = logB.map((MapFunction<Row, Row>) row ->
-                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 2), row.get(2), row.get(3));},
+                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 2, 1), row.get(2), row.get(3));},
                 RowEncoder.apply(logB.schema()));
         mapped_logB = mapped_logB.selectExpr("CAST(keyB AS STRING)", "CAST(valueB AS STRING)",
                 "CAST(topicB AS STRING)", "CAST(timestampB AS TIMESTAMP)");
@@ -305,22 +307,38 @@ public class App {
         return String.valueOf(ERROR_NUMBER);
     }
     //method to parse records from the different sources
-    public static String splitValue(String value, Integer source){
+    //helper methods
+    public static String current_id_A;
+    public static String current_id_B;
+    //method to parse records from the different sources
+    public static String splitValue(String value, Integer source, Integer from_topic){ //topic A is 0, topic B is 1
         String[] parts = new String[0];
+        String msg_id = "";
+        String msg_value = "";
         if(source == 0){ //iot line separator
-            //asumming an input of type 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4
+            //asumming an input of type 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4,ID
+            //now would be 2707176363363894:2021-02-07 00:03:19,1612656199,63.3,17.4,ID
             parts = value.split(",");
-            return parts[3];
+            msg_id = parts[4];
+            msg_value = parts[3];
         } else if (source == 2) { //logs line separator
             //[22/Jan/2019:03:56:16 +0330] "GET /image/60844/productModel/200x200 HTTP/1.1" 402 5667 "https://www.zanbil.ir/m/filter/b113" "Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36" "-
             parts = value.split("(1.1\" )|(1.0\" )|(\" (?=\\d{3}))");
+            msg_id = value.split("!!432&%$(())#")[1];
             parts = parts[1].split(" ");
-            //System.out.println(parts[0]);
-            return parts[0];
+            //System.out.println(Arrays.toString(parts));
+            msg_value = parts[0];
         }else{ //twitter line separator
-            //System.out.println(value.substring(0, 5));
-            return value.substring(0, 5);
+            msg_id = value.split("!!432&%$(())#")[1];
+            msg_value = value.substring(0, 5);
         }
+        if(from_topic == 0){
+            current_id_A = msg_id;
+        }else{
+            current_id_B = msg_id;
+        }
+        System.out.println(current_id_A);
+        return msg_value;
     }
 
     //counts and store in constant variables the type of tweet received
