@@ -4,7 +4,6 @@ import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.*;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.streaming.Trigger;
-import org.apache.spark.sql.types.StringType;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -98,12 +97,12 @@ public class App {
         iotB = iotB.withColumn("idB", lit(""));
 
         Dataset<Row> mapped_iotA = iotA.map((MapFunction<Row, Row>) row ->
-        {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0, 0), row.get(2), row.get(3), get_id((String) row.get(1), 0));},
+        {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0), row.get(2), row.get(3), get_id((String) row.get(1), 0));},
                 RowEncoder.apply(iotA.schema()));
         mapped_iotA = mapped_iotA.selectExpr("CAST(keyA AS STRING)", "CAST(valueA AS FLOAT)",
                 "CAST(topicA AS STRING)", "CAST(timestampA AS TIMESTAMP)", "CAST(idA AS STRING)");
         Dataset<Row> mapped_iotB = iotB.map((MapFunction<Row, Row>) row ->
-        {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0, 1), row.get(2), row.get(3), get_id((String) row.get(1), 0));},
+        {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 0), row.get(2), row.get(3), get_id((String) row.get(1), 0));},
                 RowEncoder.apply(iotB.schema()));
         mapped_iotB = mapped_iotB.selectExpr("CAST(keyB AS STRING)", "CAST(valueB AS FLOAT)",
                 "CAST(topicB AS STRING)", "CAST(timestampB AS TIMESTAMP)", "CAST(idB AS STRING)");
@@ -114,7 +113,8 @@ public class App {
         //row_schema: keyA, avrgValue, topicA, timestampA, concatIds, keyB, valueB, topicB, timestampB, idB
         joined_streams = joined_streams.map(
                 (MapFunction<Row, Row>) row ->
-                {return RowFactory.create(row.get(0), avrg((Float)row.get(1), (Float)row.get(5)), row.get(2), row.get(3), "!!432&%$(())#" + (String)row.get(4) + (String)row.get(9), row.get(5), row.get(6), row.get(7), row.get(8), row.get(9));},
+                {return RowFactory.create(row.get(0), avrg((Float)row.get(1), (Float)row.get(6)), row.get(2), row.get(3),
+                        "!!432&%$(())#" + row.get(4) + "_" + row.get(9), row.get(5), row.get(6), row.get(7), row.get(8), row.get(9));},
                 RowEncoder.apply(joined_streams.schema())
         );
 
@@ -167,6 +167,8 @@ public class App {
         twitterA = twitterA.withColumnRenamed("value", "valueA");
         twitterA = twitterA.withColumnRenamed("topic", "topicA");
         twitterA = twitterA.withColumnRenamed("timestamp", "timestampA");
+        twitterA = twitterA.withColumn("idA", lit(""));
+
         Dataset<Row> twitterB = spark
                 .readStream()
                 .format("kafka")
@@ -179,36 +181,46 @@ public class App {
         twitterB = twitterB.withColumnRenamed("value", "valueB");
         twitterB = twitterB.withColumnRenamed("topic", "topicB");
         twitterB = twitterB.withColumnRenamed("timestamp", "timestampB");
+        twitterB = twitterB.withColumn("idB", lit(""));
 
 
         Dataset<Row> mapped_twitterA = twitterA.map((MapFunction<Row, Row>) row ->
-                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 3, 0), row.get(2), row.get(3));},
+                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 3),
+                        row.get(2), row.get(3), get_id((String) row.get(1), 3));},
                 RowEncoder.apply(twitterA.schema()));
         mapped_twitterA = mapped_twitterA.selectExpr("CAST(keyA AS STRING)", "CAST(valueA AS STRING)",
-                "CAST(topicA AS STRING)", "CAST(timestampA AS TIMESTAMP)");
+                "CAST(topicA AS STRING)", "CAST(timestampA AS TIMESTAMP)", "CAST(idA AS STRING)");
         Dataset<Row> mapped_twitterB = twitterB.map((MapFunction<Row, Row>) row ->
-                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 3, 1), row.get(2), row.get(3));},
+                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 3),
+                        row.get(2), row.get(3), get_id((String) row.get(1), 3));},
                 RowEncoder.apply(twitterB.schema()));
         mapped_twitterB = mapped_twitterB.selectExpr("CAST(keyB AS STRING)", "CAST(valueB AS STRING)",
-                "CAST(topicB AS STRING)", "CAST(timestampB AS TIMESTAMP)");
+                "CAST(topicB AS STRING)", "CAST(timestampB AS TIMESTAMP)", "CAST(idB AS STRING)");
 
         Dataset<Row> joined_streams = mapped_twitterA
                 .join(mapped_twitterB, mapped_twitterA.col("keyA").equalTo(mapped_twitterB.col("keyB")));
 
         joined_streams = joined_streams .map(
                 (MapFunction<Row, Row>) row ->
-                {return RowFactory.create(row.get(0), twitter_counter((String)row.get(1) +"&-/-q&"+ (String)row.get(5)), row.get(2), row.get(3), row.get(4), row.get(5), row.get(6), row.get(7));},
+                {return RowFactory.create(row.get(0), twitter_counter((String)row.get(1) +"&-/-q&"+ (String)row.get(6)), row.get(2),
+                        row.get(3), "!!432&%$(())#" + row.get(4) + "_" + row.get(9), row.get(5), row.get(6), row.get(7), row.get(8), row.get(9));},
                 RowEncoder.apply(joined_streams.schema())
         );
         joined_streams = joined_streams.withWatermark("timestampA", "50 milliseconds");
 
         Dataset<Row> windowedAvg = joined_streams.groupBy(
                 functions.window(col("timestampA"), "15 seconds"),
-                col("keyA")
+                col("keyA"), col("idA")
         ).df();
 
         windowedAvg = windowedAvg.withColumnRenamed("valueA", "value");
         windowedAvg = windowedAvg.withColumnRenamed("keyA", "key");
+        windowedAvg = windowedAvg.withColumnRenamed("idA", "concatIds");
+
+        windowedAvg = windowedAvg.selectExpr("CAST(key AS STRING)",
+                "CAST(value AS STRING)", "CAST(concatIds AS STRING)");
+
+        windowedAvg = windowedAvg.withColumn("value", concat(col("value"), col("concatIds")));
 
         windowedAvg
                 .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
@@ -238,6 +250,7 @@ public class App {
         logA = logA.withColumnRenamed("value", "valueA");
         logA = logA.withColumnRenamed("topic", "topicA");
         logA = logA.withColumnRenamed("timestamp", "timestampA");
+        logA = logA.withColumn("idA", lit(""));
         Dataset<Row> logB = spark
                 .readStream()
                 .format("kafka")
@@ -250,35 +263,42 @@ public class App {
         logB = logB.withColumnRenamed("value", "valueB");
         logB = logB.withColumnRenamed("topic", "topicB");
         logB = logB.withColumnRenamed("timestamp", "timestampB");
-
+        logB = logB.withColumn("idB", lit(""));
 
         Dataset<Row> mapped_logA = logA.map((MapFunction<Row, Row>) row ->
-                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 2, 0), row.get(2), row.get(3));},
+                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 2), row.get(2), row.get(3), get_id((String)row.get(1), 2));},
                 RowEncoder.apply(logA.schema()));
         mapped_logA = mapped_logA.selectExpr("CAST(keyA AS STRING)", "CAST(valueA AS STRING)",
-                "CAST(topicA AS STRING)", "CAST(timestampA AS TIMESTAMP)");
+                "CAST(topicA AS STRING)", "CAST(timestampA AS TIMESTAMP)", "CAST(idA AS STRING)");
         Dataset<Row> mapped_logB = logB.map((MapFunction<Row, Row>) row ->
-                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 2, 1), row.get(2), row.get(3));},
+                {return RowFactory.create(row.get(0), splitValue((String) row.get(1), 2), row.get(2), row.get(3), get_id((String)row.get(1), 2));},
                 RowEncoder.apply(logB.schema()));
         mapped_logB = mapped_logB.selectExpr("CAST(keyB AS STRING)", "CAST(valueB AS STRING)",
-                "CAST(topicB AS STRING)", "CAST(timestampB AS TIMESTAMP)");
+                "CAST(topicB AS STRING)", "CAST(timestampB AS TIMESTAMP)", "CAST(idB AS STRING)");
 
         Dataset<Row> joined_streams = mapped_logA
                 .join(mapped_logB, mapped_logA.col("keyA").equalTo(mapped_logB.col("keyB")));
 
         joined_streams = joined_streams .map(
                 (MapFunction<Row, Row>) row ->
-                {return RowFactory.create(row.get(0), check_if_error((String)row.get(1) +" "+ (String)row.get(5)), row.get(2), row.get(3), row.get(4), row.get(5), row.get(6), row.get(7));},
+                {return RowFactory.create(row.get(0), check_if_error((String)row.get(1) +" "+ (String)row.get(6)), row.get(2), row.get(3),
+                        "!!432&%$(())#" + row.get(4) + "_" + row.get(9), row.get(5), row.get(6), row.get(7), row.get(8), row.get(9));},
                 RowEncoder.apply(joined_streams.schema())
         );
         joined_streams = joined_streams.withWatermark("timestampA", "50 milliseconds");
 
         Dataset<Row> windowedAvg = joined_streams.groupBy(
                 functions.window(col("timestampA"), "15 seconds"),
-                col("keyA")
+                col("keyA"), col("idA")
         ).df();
         windowedAvg = windowedAvg.withColumnRenamed("valueA", "value");
         windowedAvg = windowedAvg.withColumnRenamed("keyA", "key");
+        windowedAvg = windowedAvg.withColumnRenamed("idA", "concatIds");
+
+        windowedAvg = windowedAvg.selectExpr("CAST(key AS STRING)",
+                "CAST(value AS STRING)", "CAST(concatIds AS STRING)");
+
+        windowedAvg = windowedAvg.withColumn("value", concat(col("value"), col("concatIds")));
 
         windowedAvg
                 .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
@@ -320,7 +340,7 @@ public class App {
     //helper methods
 
     //method to parse records from the different sources
-    public static String splitValue(String value, Integer source, Integer from_topic){ //topic A is 0, topic B is 1
+    public static String splitValue(String value, Integer source){ //topic A is 0, topic B is 1
         String[] parts = new String[0];
         String msg_value = "";
         if(source == 0){ //iot line separator
@@ -350,10 +370,11 @@ public class App {
             msg_id = parts[4];
         } else if (source == 2) { //logs line separator
             //[22/Jan/2019:03:56:16 +0330] "GET /image/60844/productModel/200x200 HTTP/1.1" 402 5667 "https://www.zanbil.ir/m/filter/b113" "Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36" "-
-            msg_id = value.split("!!432&%$(())#")[1];
+            msg_id = value.split("!!432&%\\$\\(\\(\\)\\)#")[1];
             //System.out.println(Arrays.toString(parts));
         }else{ //twitter line separator
-            msg_id = value.split("!!432&%$(())#")[1];
+            msg_id = value.split("!!432&%\\$\\(\\(\\)\\)#")[1];
+            //System.out.println(Arrays.toString(parts));
         }
 
         return msg_id;
