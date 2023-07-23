@@ -27,16 +27,26 @@ def parse_output_data(output_data):
                                                  'value': 'output_value', 'timestamp': 'output_timestamp'})
     return parsed_output
 
+def calculate_avg_timestamp(tt1, tt2):
+    print(":D")
+
 def merge_data(parsed_input, parsed_output):
-    merged_data = pd.merge(parsed_input, parsed_output,  how='inner', left_on=['input_row_id'], right_on = ['id_topicA'])
-    return merged_data
+    for index, row in parsed_output.iterrows():
+        id_topicA, id_topicB = row['id_topicA'], row['id_topicB']
+        rowA, rowB = parsed_input.loc[parsed_input['input_row_id'] == id_topicA], parsed_input.loc[parsed_input['input_row_id'] == id_topicB]
+        
+        print(parsed_input.loc[parsed_input['input_row_id'] == id_topicA])
+        print(id_topicA)
+        break
+    #return merged_data
 
 input_data = pd.read_csv("input_timestamps.csv", sep=";", dtype=dtypes_dict, skiprows=[1]);
 output_data = pd.read_csv("output_timestamps.csv", sep=";", dtype=dtypes_dict);
 parsed_input = parse_input_data(input_data)
 parsed_output = parse_output_data(output_data)
-print(parsed_output)
-print(parsed_input)
 merged_data = merge_data(parsed_input, parsed_output)
+print(parsed_input)
+print(parsed_output)
+print(merged_data.loc[0])
 print(merged_data.columns)
 # ahora que los datos están mergeados hay que limpiar y sacar los promedios y latencia final
