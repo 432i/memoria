@@ -66,7 +66,7 @@ public class App
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
             public void run() {
                 end = Instant.now();
-                long timeElapsed = Duration.between(start, end).toSeconds();
+                double timeElapsed = Duration.between(start, end).toSeconds();
                 try {
                     input_file.flush();
                 } catch (IOException e) {
@@ -105,14 +105,13 @@ public class App
         }
     }
 
-    public static void calculate_throughput(long time_elapsed_in_secs){
-        //TODO: Calcular time_elapsed_in_secs
-        double total_megabytes = (keys_total_bytes+values_total_bytes)/1000000;
+    public static void calculate_throughput(double time_elapsed_in_secs){
+        double total_megabytes = (keys_total_bytes+values_total_bytes)/1000000.0;
         double throughput = total_megabytes/time_elapsed_in_secs;
         double total_bytes = keys_total_bytes+values_total_bytes;
         System.out.println("Received a total of "+records_count+" records in "+time_elapsed_in_secs+" seconds");
         System.out.println("Total bytes received: "+total_bytes);
-        System.out.println("Throughput is equal to "+throughput+" MB/s.");
+        System.out.println("Throughput is equal to "+String.format("%.10f", throughput)+" MB/s.");
 
     }
 
