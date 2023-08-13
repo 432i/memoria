@@ -225,11 +225,14 @@ public class TestProducer {
         if(topic_type == 0) { //topic type A
             producer.send(record, new Callback() {
                 public void onCompletion(RecordMetadata metadata, Exception e) {
-                    if(e != null)
+                    if(e != null){
                         e.printStackTrace();
-                    records_count_typeA += 1;
-                    total_values_bytes_typeA += metadata.serializedValueSize();
-                    total_keys_bytes_typeA += metadata.serializedKeySize();
+                    } else{
+                        records_count_typeA += 1;
+                        total_values_bytes_typeA += metadata.serializedValueSize();
+                        total_keys_bytes_typeA += metadata.serializedKeySize();
+                    }
+
                     if(timer_flag){
                         start = Instant.now();
                         timer_flag = false;
@@ -246,11 +249,13 @@ public class TestProducer {
         }else{ //topic type B
             producer.send(record, new Callback() {
                 public void onCompletion(RecordMetadata metadata, Exception e) {
-                    if(e != null)
+                    if(e != null){
                         e.printStackTrace();
-                    records_count_typeB += 1;
-                    total_values_bytes_typeB += metadata.serializedValueSize();
-                    total_keys_bytes_typeB += metadata.serializedKeySize();
+                    }else{
+                        records_count_typeB += 1;
+                        total_values_bytes_typeB += metadata.serializedValueSize();
+                        total_keys_bytes_typeB += metadata.serializedKeySize();
+                    }
                 }
             });
         }
