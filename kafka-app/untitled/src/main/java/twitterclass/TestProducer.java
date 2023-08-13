@@ -41,7 +41,7 @@ public class TestProducer {
         Runtime.getRuntime().addShutdownHook(new Thread() {
             public void run() {
                 end = Instant.now();
-                long timeElapsed = Duration.between(start, end).toSeconds();
+                double timeElapsed = Duration.between(start, end).toSeconds();
 
                 try {
                     Thread.sleep(100);
@@ -49,10 +49,10 @@ public class TestProducer {
                     throw new RuntimeException(e);
                 }
                 //calculating MB sent per second
-                long total_bytes_sent_A = total_values_bytes_typeA + total_keys_bytes_typeA;
-                long total_bytes_sent_B = total_values_bytes_typeB + total_keys_bytes_typeB;
-                double total_mb_A = total_bytes_sent_A/1000000;
-                double total_mb_B = total_bytes_sent_B/1000000;
+                double total_bytes_sent_A = total_values_bytes_typeA + total_keys_bytes_typeA;
+                double total_bytes_sent_B = total_values_bytes_typeB + total_keys_bytes_typeB;
+                double total_mb_A = total_bytes_sent_A/1000000.0;
+                double total_mb_B = total_bytes_sent_B/1000000.0;
                 double mb_per_second_A = total_mb_A/timeElapsed;
                 double mb_per_second_B = total_mb_B/timeElapsed;
 
@@ -62,13 +62,13 @@ public class TestProducer {
                 System.out.println("Records sent successfully: " + records_count_typeA);
                 System.out.println("Total values bytes sent: " + total_values_bytes_typeA);
                 System.out.println("Total keys bytes sent: " + total_keys_bytes_typeA);
-                System.out.println("Total megabytes per second: " + mb_per_second_A+" MB/s");
+                System.out.println("Total megabytes per second: " + String.format("%.10f", mb_per_second_A)+" MB/s");
                 System.out.println("------------------------------------------------------");
                 System.out.println("TOPIC B INFO");
                 System.out.println("Records sent successfully: " + records_count_typeB);
                 System.out.println("Total values bytes sent: " + total_values_bytes_typeB);
                 System.out.println("Total keys bytes sent: " + total_keys_bytes_typeB);
-                System.out.println("Total megabytes per second: " + mb_per_second_B+" MB/s");
+                System.out.println("Total megabytes per second: " + String.format("%.10f", mb_per_second_B)+" MB/s");
 
             }
         });
