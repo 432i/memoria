@@ -22,7 +22,7 @@ public class App {
         SparkSession spark = SparkSession
                 .builder()
                 .appName("App")
-                .config("spark.sql.shuffle.partitions", 5)
+                .config("spark.sql.shuffle.partitions", 2)
                 .config("spark.sql.streaming.minBatchesToRetain", 2)
                 .config("spark.driver.cores", 2)
                 .config("spark.driver.memory", "6g")
@@ -31,6 +31,11 @@ public class App {
                 .config("spark.executor.cores", 4)
                 .config("spark.locality.wait", "100ms")
                 .config("spark.default.parallelism", 20)
+                .config("spark.driver.extraJavaOptions", "-XX:+UseG1GC")
+                .config("spark.executor.extraJavaOptions", "-XX:+UseG1GC")
+                .config("spark.executor.extraJavaOptions", "-XX:ConcGCThreads=2")
+                .config("spark.executor.extraJavaOptions", "-XX:ParallelGCThreads=4")
+                .config("spark.sql.autoBroadcastJoinThreshold", -1)
                 .master("local")
                 .getOrCreate();
         //spark.conf().set("spark.sql.shuffle.partitions",2);
@@ -137,7 +142,7 @@ public class App {
         windowedAvg
                 .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
                 .writeStream()
-                .trigger(Trigger.ProcessingTime("1 minutes"))
+                .trigger(Trigger.ProcessingTime("0 milliseconds"))
                 .format("kafka")
                 .outputMode("append")
                 .option("kafka.bootstrap.servers", IP)
@@ -225,7 +230,7 @@ public class App {
         windowedAvg
                 .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
                 .writeStream()
-                .trigger(Trigger.ProcessingTime("1 minutes"))
+                .trigger(Trigger.ProcessingTime("0 milliseconds"))
                 .format("kafka")
                 .outputMode("append")
                 .option("kafka.bootstrap.servers", IP)
@@ -303,7 +308,7 @@ public class App {
         windowedAvg
                 .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
                 .writeStream()
-                .trigger(Trigger.ProcessingTime("1 minutes"))
+                .trigger(Trigger.ProcessingTime("0 milliseconds"))
                 .format("kafka")
                 .outputMode("append")
                 .option("kafka.bootstrap.servers", IP)
