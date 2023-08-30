@@ -49,8 +49,9 @@ def clean_and_process(parsed_input, parsed_output):
     result = parsed_output.drop(['offset', 'output_key', 'output_topic'], axis=1)
     return result
 
-input_data = pd.read_csv("input_timestamps.csv", sep=";", dtype=dtypes_dict, skiprows=[1])
-output_data = pd.read_csv("output_timestamps.csv", sep=";", dtype=dtypes_dict)
+input_data = pd.read_csv("input_timestamps.txt", sep=";", dtype=dtypes_dict, skiprows=[1])
+output_data = pd.read_csv("output_timestamps.txt", sep=";", dtype=dtypes_dict)
+print("Archivos leídos")
 parsed_input = parse_input_data(input_data)
 parsed_output = parse_output_data(output_data)
 result = clean_and_process(parsed_input, parsed_output)
