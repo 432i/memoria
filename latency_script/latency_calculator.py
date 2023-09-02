@@ -35,7 +35,10 @@ def calculate_avg_timestamp(tt1, tt2):
 def clean_and_process(parsed_input, parsed_output):
     parsed_output['input_timestampA'], parsed_output['input_timestampB'] = "", ""
     parsed_output['avg_input_timestamp'], parsed_output['final_latency'] = "", ""
+    total_idx = len(parsed_output)
     for index, row in parsed_output.iterrows():
+        #if index % 100000 != 0:
+        #    continue
         id_topicA, id_topicB = row['id_topicA'], row['id_topicB']
         rowA, rowB = parsed_input.loc[parsed_input['input_row_id'] == id_topicA], parsed_input.loc[parsed_input['input_row_id'] == id_topicB]
         
@@ -45,8 +48,11 @@ def clean_and_process(parsed_input, parsed_output):
 
         parsed_output.at[index, 'input_timestampA'], parsed_output.at[index, 'input_timestampB'] = rowA['input_timestamp'].values[0], rowB['input_timestamp'].values[0]
         parsed_output.at[index, 'avg_input_timestamp'], parsed_output.at[index, 'final_latency'] = avg_input_timestamp, final_latency
+        print(f'index {index} de {total_idx}')
+
 
     result = parsed_output.drop(['offset', 'output_key', 'output_topic'], axis=1)
+    
     return result
 
 input_data = pd.read_csv("input_timestamps.txt", sep=";", dtype=dtypes_dict, skiprows=[1])
@@ -55,5 +61,6 @@ print("Archivos leídos")
 parsed_input = parse_input_data(input_data)
 parsed_output = parse_output_data(output_data)
 result = clean_and_process(parsed_input, parsed_output)
+result = result[result['final_latency'].notna()]
 result.to_csv(f'{CURRENT_TOPIC}_timestamps_result.csv', sep=';', encoding='utf-8')
 print(result)
