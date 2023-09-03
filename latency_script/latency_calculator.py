@@ -33,8 +33,8 @@ def calculate_avg_timestamp(tt1, tt2):
     return ((int(tt1) + int(tt2)) / 2)
 
 def clean_and_process(parsed_input, parsed_output):
-    parsed_output['input_timestampA'], parsed_output['input_timestampB'] = "", ""
-    parsed_output['avg_input_timestamp'], parsed_output['final_latency'] = "", ""
+    parsed_output['input_timestampA'], parsed_output['input_timestampB'] = pd.NA, pd.NA
+    parsed_output['avg_input_timestamp'], parsed_output['final_latency'] = pd.NA, pd.NA
     total_idx = len(parsed_output)
     for index, row in parsed_output.iterrows():
         #if index % 100000 != 0:
