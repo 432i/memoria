@@ -30,13 +30,13 @@ public class App
         String ip = get_IP();
         // params tunning for pipeline
         String[] params = {
-                "--project=stone-composite-381500",
-                "--gcpTempLocation=gs://dataflow_beam_test-1/temp/",
+                "--project=elegant-verbena-400000",
+                "--gcpTempLocation=gs://beam_dataflow_bucket/temp/",
                 "--runner=DataflowRunner",
                 "--zone=southamerica-west1-a",
                 "--region=southamerica-west1",
                 //hardware conf
-                "--workerMachineType=c2-standard-8",
+                "--workerMachineType=n2-custom-8-32768",
                 "--diskSizeGb=30",
                 "--workerDiskType=compute.googleapis.com/projects//zones//diskTypes/pd-ssd",
                 //params for performance
@@ -100,7 +100,7 @@ public class App
                 MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
                         .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),0, 0)))
                 ).apply(
-                        Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(30)))
+                        Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(15)))
                                 .triggering(Repeatedly.forever(AfterWatermark.pastEndOfWindow()))
                                 .withAllowedLateness(Duration.ZERO).accumulatingFiredPanes()
                 );
@@ -121,7 +121,7 @@ public class App
                 MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
                         .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),0, 1)))
                 ).apply(
-                        Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(30)))
+                        Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(15)))
                                 .triggering(Repeatedly.forever(AfterWatermark.pastEndOfWindow()))
                                 .withAllowedLateness(Duration.ZERO).accumulatingFiredPanes()
                 );
@@ -196,7 +196,7 @@ public class App
                         MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
                                 .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),3, 0)))
                 ).apply(
-                        Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(30)))
+                        Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(15)))
                                 .triggering(Repeatedly.forever(AfterWatermark.pastEndOfWindow()))
                                 .withAllowedLateness(Duration.ZERO).accumulatingFiredPanes()
                 );
@@ -206,7 +206,7 @@ public class App
                         MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
                                 .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),3, 1)))
                 ).apply(
-                        Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(30)))
+                        Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(15)))
                                 .triggering(Repeatedly.forever(AfterWatermark.pastEndOfWindow()))
                                 .withAllowedLateness(Duration.ZERO).accumulatingFiredPanes()
                 );
@@ -275,7 +275,7 @@ public class App
                         MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
                                 .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),2, 0)))
                 ).apply(
-                        Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(30)))
+                        Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(15)))
                                 .triggering(Repeatedly.forever(AfterWatermark.pastEndOfWindow()))
                                 .withAllowedLateness(Duration.ZERO).accumulatingFiredPanes()
                 );
@@ -285,7 +285,7 @@ public class App
                         MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
                                 .via((KafkaRecord<String, String> record) -> KV.of(record.getKV().getKey(), splitValue(record.getKV().getValue(),2, 1)))
                 ).apply(
-                        Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(30)))
+                        Window.<KV<String,String>>into(FixedWindows.of(Duration.standardSeconds(15)))
                                 .triggering(Repeatedly.forever(AfterWatermark.pastEndOfWindow()))
                                 .withAllowedLateness(Duration.ZERO).accumulatingFiredPanes()
                 );
@@ -350,12 +350,12 @@ public class App
         } else if (source == 2) { //logs line separator
             //[22/Jan/2019:03:56:16 +0330] "GET /image/60844/productModel/200x200 HTTP/1.1" 402 5667 "https://www.zanbil.ir/m/filter/b113" "Mozilla/5.0 (Linux; Android 6.0; ALE-L21 Build/HuaweiALE-L21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36" "-
             parts = value.split("(1.1\" )|(1.0\" )|(\" (?=\\d{3}))");
-            msg_id = value.split("!!432&%$(())#")[1];
+            msg_id = value.split("!!432&%\\$\\(\\(\\)\\)#")[1];
             parts = parts[1].split(" ");
             //System.out.println(Arrays.toString(parts));
             msg_value = parts[0];
         }else{ //twitter line separator
-            msg_id = value.split("!!432&%$(())#")[1];
+            msg_id = value.split("!!432&%\\$\\(\\(\\)\\)#")[1];
             msg_value = value.substring(0, 5);
         }
         if(from_topic == 0){
