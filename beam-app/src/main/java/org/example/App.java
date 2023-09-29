@@ -328,7 +328,7 @@ public class App
         //write to kafka topic
         final_data.apply(KafkaIO.<Void, String>write()
         .withBootstrapServers(IP)
-        .withTopic("iotOut")
+        .withTopic("logOut")
                 .withValueSerializer( StringSerializer.class).values());
         //Here we are starting the pipeline
         pipeline.run();
